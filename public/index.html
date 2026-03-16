@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ученик - Квиз</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- KaTeX for Math support -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+</head>
+<body>
+    <div class="bg-particles" id="bg-particles"></div>
+
+    <div class="container" id="pin-screen">
+        <h1>Введи PIN-код</h1>
+        <input type="number" id="room-pin" placeholder="000000" maxlength="6" style="font-size: 2.5rem; text-align: center; letter-spacing: 5px;">
+        <button id="btn-validate-pin">Продолжить</button>
+        <p id="pin-error" style="color: var(--error); margin-top: 10px;"></p>
+    </div>
+
+    <div class="container hidden" id="join-screen">
+        <h1>Присоединиться</h1>
+        <div style="font-size: 5rem; margin-bottom: 10px;" id="selected-emoji-display">👨‍🎓</div>
+        <button id="btn-open-emoji" style="width: auto; padding: 5px 15px; margin-bottom: 20px; background: var(--glass); font-size: 0.9rem;">Сменить аватар</button>
+        <input type="text" id="nickname" placeholder="Твой никнейм" maxlength="15">
+        <button id="btn-join">Вход</button>
+    </div>
+
+    <!-- Emoji Modal -->
+    <div id="emoji-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(10px);">
+        <div class="container" style="max-width: 500px; max-height: 80vh; overflow-y: auto;">
+            <h2>Выбери аватар</h2>
+            <div id="emoji-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; font-size: 2.5rem; padding: 20px;"></div>
+            <button onclick="document.getElementById('emoji-modal').classList.add('hidden')">Закрыть</button>
+        </div>
+    </div>
+
+    <div class="container hidden" id="waiting-screen">
+        <h1>Готово!</h1>
+        <p>Ты в игре. Ждем начала от учителя...</p>
+        <div class="loader" style="font-size: 3rem; animation: rotate 2s linear infinite;">⌛</div>
+    </div>
+
+    <div class="container hidden" id="quiz-screen">
+        <p id="q-progress" style="color: var(--secondary); font-weight: 600; margin-bottom: 5px;"></p>
+        <div class="timer-bar" id="timer"></div>
+        <h2 id="question-text">Загрузка вопроса...</h2>
+        <div class="options-grid" id="options"></div>
+    </div>
+
+    <div class="container hidden" id="feedback-screen">
+        <h1 id="feedback-title">Ответ принят!</h1>
+        <p>Ждем остальных...</p>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div id="image-modal" class="modal hidden" onclick="closePreview()">
+        <span class="close-modal">&times;</span>
+        <img class="modal-content" id="modal-img">
+    </div>
+
+    <div class="container hidden" id="result-screen">
+        <h1 id="result-text">Правильно!</h1>
+        <div id="points-gained" style="font-size: 2rem; color: #ffd700;">+0</div>
+        <p>Твой счет: <span id="total-score">0</span></p>
+    </div>
+
+    <div class="container hidden" id="final-results">
+        <h1>Фирменный финал!</h1>
+        <div id="final-stats"></div>
+        <button onclick="location.reload()">Еще раз?</button>
+    </div>
+
+    <div class="container hidden" id="kicked-screen">
+        <h1 style="color: var(--error);">Вы удалены</h1>
+        <p>Учитель удалил вас из этой сессии.</p>
+        <button onclick="location.reload()">Вернуться</button>
+    </div>
+
+    <script>
+        const socket = io();
+        let selectedEmoji = "👨‍🎓";
+        
+        function initParticles() {
+            const container = document.getElementById('bg-particles');
+            for (let i = 0; i < 20; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                const size = Math.random() * 5 + 2;
+                p.style.width = `${size}px`;
+                p.style.height = `${size}px`;
+                p.style.left = `${Math.random() * 100}%`;
+                p.style.top = `${Math.random() * 100}%`;
+                p.style.animationDelay = `${Math.random() * 10}s`;
+                p.style.opacity = Math.random() * 0.3;
+                container.appendChild(p);
+            }
+        }
+        initParticles();
+
+        function renderQuizMath(element = document.body) {
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(element, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError : false
+                });
+            }
+        }
+
+        document.getElementById('btn-validate-pin').onclick = () => {
+            const pin = document.getElementById('room-pin').value;
+            if (pin.length !== 6) return alert('Введите 6 цифр!');
+            socket.emit('validate_pin', { pin });
+        };
+
+        socket.on('pin_valid', () => {
+            showScreen('join-screen');
+        });
+
+        socket.on('pin_invalid', (data) => {
+            document.getElementById('pin-error').innerText = data.message;
+        });
+
+        socket.on('kicked', () => {
+            showScreen('kicked-screen');
+        });
+
+        const emojis = ["👨‍🎓", "👩‍🎓", "🚀", "🎮", "🦊", "🐯", "🐱", "🐶", "🦁", "🐧", "🦄", "🐼", "🐨", "🦁", "🐸", "🐷", "👺", "👻", "🤖", "👾", "👽", "💩", "🔥", "🌈", "⭐", "🍀", "🍎", "🍕", "🍦", "⚽"];
+        
+        function initEmojiPicker() {
+            const grid = document.getElementById('emoji-grid');
+            emojis.forEach(e => {
+                const span = document.createElement('span');
+                span.innerText = e;
+                span.style.cursor = 'pointer';
+                span.style.transition = 'transform 0.2s';
+                span.onmouseover = () => span.style.transform = 'scale(1.3)';
+                span.onmouseout = () => span.style.transform = 'scale(1)';
+                span.onclick = () => {
+                    selectedEmoji = e;
+                    document.getElementById('selected-emoji-display').innerText = e;
+                    document.getElementById('emoji-modal').classList.add('hidden');
+                };
+                grid.appendChild(span);
+            });
+        }
+        initEmojiPicker();
+
+        document.getElementById('btn-open-emoji').onclick = () => {
+            document.getElementById('emoji-modal').classList.remove('hidden');
+        };
+
+        let myName = '';
+
+        document.getElementById('btn-join').onclick = () => {
+            const name = document.getElementById('nickname').value;
+            if (!name) return alert('Введи ник!');
+            myName = name;
+            socket.emit('join', { name, emoji: selectedEmoji });
+        };
+
+        socket.on('joined', () => {
+            showScreen('waiting-screen');
+        });
+
+        socket.on('new_question', (data) => {
+            showScreen('quiz-screen');
+            document.getElementById('q-progress').innerText = `Вопрос ${data.index + 1} из ${data.total}`;
+            const qText = document.getElementById('question-text');
+            qText.innerHTML = (data.image ? `<img src="${data.image}" class="quiz-image preview-img" onclick="openPreview(this.src)">` : '') + data.question;
+            
+            const optionsDiv = document.getElementById('options');
+            optionsDiv.innerHTML = '';
+
+            if (data.type === 'SINGLE' || !data.type) {
+                optionsDiv.className = 'options-grid';
+                data.options.forEach((opt, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'option-btn';
+                    btn.style.display = 'flex';
+                    btn.style.flexDirection = 'column';
+                    btn.style.alignItems = 'center';
+                    btn.style.gap = '10px';
+                    
+                    let inner = '';
+                    if (data.optionImages && data.optionImages[idx]) {
+                        inner += `<img src="${data.optionImages[idx]}" class="option-image preview-img" onclick="event.stopPropagation(); openPreview(this.src)">`;
+                    }
+                    inner += `<span>${opt}</span>`;
+                    btn.innerHTML = inner;
+                    
+                    btn.style.animation = `slideUp 0.4s ease-out ${idx * 0.1}s both`;
+                    btn.onclick = () => {
+                        socket.emit('submit_answer', { answerIndex: idx });
+                        showScreen('feedback-screen');
+                    };
+                    optionsDiv.appendChild(btn);
+                });
+            } else if (data.type === 'MULTI') {
+                optionsDiv.className = ''; // Reset grid
+                const selected = [];
+                data.options.forEach((opt, idx) => {
+                    const div = document.createElement('label');
+                    div.className = 'multi-option';
+                    div.style.animation = `slideUp 0.4s ease-out ${idx * 0.1}s both`;
+                    div.style.display = 'flex';
+                    div.style.alignItems = 'center';
+                    div.style.gap = '10px';
+                    
+                    let inner = `<input type="checkbox" value="${idx}"> `;
+                    if (data.optionImages && data.optionImages[idx]) {
+                        inner += `<img src="${data.optionImages[idx]}" class="option-image preview-img" onclick="event.stopPropagation(); openPreview(this.src)"> `;
+                    }
+                    inner += `<span>${opt}</span>`;
+                    div.innerHTML = inner;
+                    div.onclick = (e) => {
+                        const cb = div.querySelector('input');
+                        if (e.target !== cb) {
+                            cb.checked = !cb.checked;
+                            e.preventDefault(); // Prevent double trigger if label is associated with input
+                        }
+                    };
+                    optionsDiv.appendChild(div);
+                });
+                const submitBtn = document.createElement('button');
+                submitBtn.innerText = 'Отправить ответ';
+                submitBtn.style.marginTop = '20px';
+                submitBtn.onclick = () => {
+                    const indices = Array.from(optionsDiv.querySelectorAll('input:checked')).map(i => parseInt(i.value));
+                    if (indices.length === 0) return alert('Выбери хотя бы один вариант!');
+                    socket.emit('submit_answer', { answerIndices: indices });
+                    showScreen('feedback-screen');
+                };
+                optionsDiv.appendChild(submitBtn);
+            } else if (data.type === 'TEXT') {
+                optionsDiv.className = '';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = 'Твой ответ здесь...';
+                input.id = 'text-ans-input';
+                input.style.fontSize = '1.5rem';
+                input.style.textAlign = 'center';
+                input.style.margin = '20px 0';
+                optionsDiv.appendChild(input);
+
+                const submitBtn = document.createElement('button');
+                submitBtn.innerText = 'Отправить';
+                submitBtn.onclick = () => {
+                    const val = document.getElementById('text-ans-input').value;
+                    if (!val) return alert('Напиши что-нибудь!');
+                    socket.emit('submit_answer', { answerText: val });
+                    showScreen('feedback-screen');
+                };
+                optionsDiv.appendChild(submitBtn);
+                input.focus();
+            }
+            startTimer(data.time);
+            renderQuizMath(document.getElementById('quiz-screen'));
+        });
+
+        socket.on('question_finished', (data) => {
+            const myResult = data.playerResults[socket.id];
+            showScreen('result-screen');
+            const resText = document.getElementById('result-text');
+            if (myResult && myResult.correct) {
+                resText.innerText = 'Правильно! 🎉';
+                resText.style.color = '#00b894';
+                document.getElementById('points-gained').innerText = '+' + myResult.points;
+            } else {
+                resText.innerText = 'Неверно 😢';
+                resText.style.color = '#d63031';
+                document.getElementById('points-gained').innerText = '+0';
+            }
+            // Score will be updated in final_results or custom event
+        });
+
+        socket.on('final_results', (data) => {
+            showScreen('final-results');
+            const stats = document.getElementById('final-stats');
+            const me = data.leaderboard.find(p => p.id === socket.id);
+            
+            let html = `<h3>Твой итоговый счет: ${me ? me.score : '?'}</h3>`;
+            html += `<div class="leaderboard" style="margin-top:20px; text-align: left;">`;
+            data.leaderboard.forEach((p, idx) => {
+                html += `
+                    <div class="leaderboard-item" style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <span>${idx + 1}. ${p.emoji} ${p.name} ${p.id === socket.id ? '(Ты)' : ''}</span>
+                        <span>${p.score}</span>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            stats.innerHTML = html;
+            renderQuizMath(stats);
+        });
+
+        function showScreen(id) {
+            ['pin-screen', 'join-screen', 'waiting-screen', 'quiz-screen', 'feedback-screen', 'result-screen', 'final-results', 'kicked-screen'].forEach(s => {
+                const el = document.getElementById(s);
+                if (el) el.classList.add('hidden');
+            });
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        window.openPreview = (src) => {
+            const modal = document.getElementById('image-modal');
+            const modalImg = document.getElementById('modal-img');
+            modal.classList.remove('hidden');
+            modalImg.src = src;
+        };
+
+        window.closePreview = () => {
+            document.getElementById('image-modal').classList.add('hidden');
+        };
+
+        function startTimer(seconds) {
+            const bar = document.getElementById('timer');
+            bar.style.transition = 'none';
+            bar.style.width = '100%';
+            setTimeout(() => {
+                bar.style.transition = `width ${seconds}s linear`;
+                bar.style.width = '0%';
+            }, 50);
+        }
+    </script>
+    <style>
+        .emoji { display: inline-block; transition: transform 0.2s; margin: 0 5px; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</body>
+</html>
