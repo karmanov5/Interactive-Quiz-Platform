@@ -5,6 +5,7 @@ const path = require('path');
 const multer = require('multer');
 const QRCode = require('qrcode');
 const os = require('os');
+
 const fs = require('fs');
 
 const app = express();
@@ -111,6 +112,20 @@ app.post('/api/save-quiz', (req, res) => {
     res.json({ success: true, id: quizId });
 });
 
+app.post('/api/import-quiz', (req, res) => {
+    const { title, questions } = req.body;
+    if (!title || !questions || !Array.isArray(questions)) {
+        return res.status(400).json({ error: 'Invalid quiz format' });
+    }
+    const quizId = Date.now().toString();
+    const folderPath = path.join(QUIZZES_DIR, quizId);
+    
+    if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath);
+    
+    fs.writeFileSync(path.join(folderPath, 'quiz.json'), JSON.stringify({ title, questions }, null, 2));
+    res.json({ success: true, id: quizId });
+});
+
 app.post('/api/select-quiz', (req, res) => {
     const { id } = req.body;
     try {
@@ -145,7 +160,7 @@ const uploadImg = multer({ storage });
 
 app.post('/api/upload-image/:quizId', uploadImg.single('image'), (req, res) => {
     if (req.file) {
-        return res.json({ path: `/quizzes/${req.params.quizId}/${req.file.filename}` });
+        return res.json({ path: `quizzes/${req.params.quizId}/${req.file.filename}` });
     }
     
     // Support base64 (clipboard)
@@ -160,7 +175,7 @@ app.post('/api/upload-image/:quizId', uploadImg.single('image'), (req, res) => {
         const filePath = path.join(dir, filename);
         
         fs.writeFileSync(filePath, base64Data, 'base64');
-        return res.json({ path: `/quizzes/${quizId}/${filename}` });
+        return res.json({ path: `quizzes/${quizId}/${filename}` });
     }
     
     res.status(400).json({ error: 'No image provided' });

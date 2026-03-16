@@ -22,9 +22,13 @@
 
     <div class="container hidden" id="main-admin-menu">
         <h1>Панель учителя</h1>
-        <button id="btn-goto-create">Создать новый квиз</button>
-        <button id="btn-goto-select">Выбрать готовый квиз</button>
-        <button id="btn-goto-stats">История статистики</button>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="btn-goto-create">Создать новый квиз</button>
+            <button id="btn-import-quiz">Импортировать квиз (JSON)</button>
+            <input type="file" id="input-import-quiz" accept=".json" style="display: none;">
+            <button id="btn-goto-select">Выбрать готовый квиз</button>
+            <button id="btn-goto-stats">История статистики</button>
+        </div>
     </div>
 
     <div class="container hidden" id="quiz-selector-screen">
@@ -220,6 +224,37 @@
 
         document.getElementById('btn-goto-select').onclick = loadQuizzes;
         document.getElementById('btn-goto-stats').onclick = loadStats;
+
+        // Import Quiz
+        const btnImport = document.getElementById('btn-import-quiz');
+        const inputImport = document.getElementById('input-import-quiz');
+        btnImport.onclick = () => inputImport.click();
+        inputImport.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const quizData = JSON.parse(event.target.result);
+                    const res = await fetch('/api/import-quiz', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(quizData)
+                    });
+                    if (res.ok) {
+                        alert('Квиз успешно импортирован!');
+                        loadQuizzes();
+                    } else {
+                        const err = await res.json();
+                        alert('Ошибка импорта: ' + err.error);
+                    }
+                } catch (err) {
+                    alert('Некорректный JSON файл');
+                }
+                inputImport.value = ''; // Reset input
+            };
+            reader.readAsText(file);
+        };
 
         // Quiz Creator
         document.getElementById('btn-add-q').onclick = () => {
