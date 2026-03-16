@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ Панель - Учитель</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- KaTeX for Math support -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+</head>
+<body>
+    <div class="bg-particles" id="bg-particles"></div>
+    <div class="container" id="admin-login">
+        <h1>Вход для учителя</h1>
+        <input type="password" id="admin-pass" placeholder="Пароль">
+        <button id="btn-admin-login">Войти</button>
+    </div>
+
+    <div class="container hidden" id="main-admin-menu">
+        <h1>Панель учителя</h1>
+        <button id="btn-goto-create">Создать новый квиз</button>
+        <button id="btn-goto-select">Выбрать готовый квиз</button>
+        <button id="btn-goto-stats">История статистики</button>
+    </div>
+
+    <div class="container hidden" id="quiz-selector-screen">
+        <h1>Выберите квиз</h1>
+        <div id="quiz-list-container" class="player-list"></div>
+        <button onclick="showScreen('main-admin-menu')">Назад</button>
+    </div>
+
+    <div class="container hidden" id="creator-screen">
+        <h1>Конструктор квиза</h1>
+        <div style="text-align: left; margin-bottom: 20px;">
+            <label for="creator-title" style="font-weight: 600; color: var(--secondary);">Название:</label>
+            <input type="text" id="creator-title" placeholder="Введите название квиза">
+        </div>
+        <div id="questions-area"></div>
+        <button id="btn-add-q">+ Добавить вопрос</button>
+        <button id="btn-save-quiz">Сохранить и Выйти</button>
+        <button onclick="showScreen('main-admin-menu')">Назад</button>
+    </div>
+
+    <div class="container hidden" id="stats-screen">
+        <h1>История сессий</h1>
+        <div style="overflow-x: auto;">
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th style="cursor: pointer;">Дата</th>
+                        <th>Квиз</th>
+                        <th>Игроков</th>
+                    </tr>
+                </thead>
+                <tbody id="stats-tbody"></tbody>
+            </table>
+        </div>
+        
+        <div id="stats-detail" class="hidden" style="margin-top: 30px; border-top: 1px solid var(--glass-border); padding-top: 20px; text-align: left;">
+            <button onclick="document.getElementById('stats-detail').classList.add('hidden')" style="background: var(--glass); width: auto; float: right; padding: 5px 15px;">✕</button>
+            <h2 id="detail-title">Детали сессии</h2>
+            <div id="detail-summary" style="margin-bottom: 20px;"></div>
+            <div id="detail-results-list"></div>
+        </div>
+
+        <button onclick="showScreen('main-admin-menu')" style="margin-top:20px;">Назад</button>
+    </div>
+
+    <div class="container hidden" id="lobby-screen">
+        <h1>Лобби квиза</h1>
+        <div id="qr-container">
+            <img id="qr-image" style="background: white; padding: 10px; border-radius: 10px;">
+            <p id="server-url"></p>
+            <div id="pin-display" style="font-size: 3rem; font-weight: 800; letter-spacing: 10px; margin: 20px 0; color: var(--secondary); text-shadow: 0 0 20px rgba(0, 210, 255, 0.4);">000000</div>
+        </div>
+        <h3>Подключено: <span id="player-count">0</span></h3>
+        <div class="player-list" id="player-list"></div>
+        <button id="btn-start" class="hidden">Начать Квиз</button>
+    </div>
+
+    <div class="container hidden" id="admin-quiz-screen">
+        <p id="admin-q-progress" style="color: var(--secondary); font-weight: 600; margin-bottom: 5px;"></p>
+        <div class="timer-bar" id="admin-timer"></div>
+        <h2 id="admin-question">Вопрос...</h2>
+        <div id="admin-options" style="text-align: left; margin: 20px 0;"></div>
+        
+        <div style="margin-top: 30px; border-top: 1px solid var(--glass-border); padding-top: 15px;">
+            <h3>Прогресс ответов:</h3>
+            <div id="live-player-list" class="player-list" style="margin-top: 10px;"></div>
+            <p id="answered-counter" style="margin-top: 15px; font-weight: 600; color: var(--secondary);">Ответило: 0 из 0</p>
+        </div>
+    </div>
+
+    <div class="container hidden" id="admin-results-screen">
+        <h1>Результаты вопроса</h1>
+        <div class="leaderboard" id="admin-leaderboard"></div>
+        <button id="btn-next-q">Следующий вопрос</button>
+    </div>
+
+    <div class="container hidden" id="admin-final-screen">
+        <h1>Итоговые результаты</h1>
+        <div id="podium" style="display: flex; justify-content: space-around; font-size: 2rem; margin: 30px 0;">
+            <div id="p2">🥈</div>
+            <div id="p1" style="transform: translateY(-20px);">🥇</div>
+            <div id="p3">🥉</div>
+        </div>
+        <div class="leaderboard" id="admin-final-stats"></div>
+        <button onclick="location.reload()">В меню</button>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div id="image-modal" class="modal hidden" onclick="closePreview()">
+        <span class="close-modal">&times;</span>
+        <img class="modal-content" id="modal-img">
+    </div>
+
+    <script>
+        const socket = io();
+        let creatorQuestions = [];
+        let currentQuizId = null;
+
+        async function uploadImage(file, callback) {
+            if (!currentQuizId) currentQuizId = Date.now().toString();
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const res = await fetch(`/api/upload-image/${currentQuizId}`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.path) callback(data.path);
+        }
+
+        async function uploadBase64Image(base64, callback) {
+            if (!currentQuizId) currentQuizId = Date.now().toString();
+            const res = await fetch(`/api/upload-image/${currentQuizId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64 })
+            });
+            const data = await res.json();
+            if (data.path) callback(data.path);
+        }
+
+        window.handlePaste = (e, callback) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf("image") === 0) {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (event) => uploadBase64Image(event.target.result, callback);
+                    reader.readAsDataURL(blob);
+                }
+            }
+        };
+
+        window.triggerUpload = (callback) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = e => {
+                if (e.target.files[0]) uploadImage(e.target.files[0], callback);
+            };
+            input.click();
+        };
+
+        function initParticles() {
+            const container = document.getElementById('bg-particles');
+            for (let i = 0; i < 30; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                const size = Math.random() * 5 + 2;
+                p.style.width = `${size}px`;
+                p.style.height = `${size}px`;
+                p.style.left = `${Math.random() * 100}%`;
+                p.style.top = `${Math.random() * 100}%`;
+                p.style.animationDelay = `${Math.random() * 10}s`;
+                p.style.opacity = Math.random() * 0.3;
+                container.appendChild(p);
+            }
+        }
+        initParticles();
+
+        function renderQuizMath(element = document.body) {
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(element, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError : false
+                });
+            }
+        }
+
+        // Persistent Login Check
+        if (localStorage.getItem('adminLoggedIn') === 'true') {
+            showScreen('main-admin-menu');
+        }
+
+        document.getElementById('btn-admin-login').onclick = () => {
+            if (document.getElementById('admin-pass').value === 'admin') {
+                localStorage.setItem('adminLoggedIn', 'true');
+                showScreen('main-admin-menu');
+            } else alert('Неверный пароль');
+        };
+
+        // Screen logic
+        document.getElementById('btn-goto-create').onclick = () => {
+            creatorQuestions = [];
+            currentQuizId = Date.now().toString(); // New ID for new quiz
+            renderCreator();
+            showScreen('creator-screen');
+        };
+
+        document.getElementById('btn-goto-select').onclick = loadQuizzes;
+        document.getElementById('btn-goto-stats').onclick = loadStats;
+
+        // Quiz Creator
+        document.getElementById('btn-add-q').onclick = () => {
+            creatorQuestions.push({ text: '', options: ['', '', '', ''], correctAnswer: 0, time: 20 });
+            renderCreator();
+        };
+
+        function renderCreator() {
+            const area = document.getElementById('questions-area');
+            area.innerHTML = '';
+            creatorQuestions.forEach((q, idx) => {
+                const div = document.createElement('div');
+                div.className = 'creator-item';
+                
+                let answerInputHtml = '';
+                if (q.type === 'SINGLE' || !q.type) {
+                    answerInputHtml = `
+                        Верный ответ: 
+                        <select onchange="updateQ(${idx}, 'correctAnswer', parseInt(this.value))">
+                            ${q.options.map((_, oIdx) => `<option value="${oIdx}" ${q.correctAnswer === oIdx ? 'selected' : ''}>№ ${oIdx + 1}</option>`).join('')}
+                        </select>
+                    `;
+                } else if (q.type === 'MULTI') {
+                    answerInputHtml = `
+                        Верные ответы: 
+                        <div style="display:flex; gap:10px; margin-top:5px;">
+                            ${q.options.map((_, oIdx) => `
+                                <label style="cursor:pointer;">
+                                    <input type="checkbox" style="width:18px; height:18px;" ${ (q.correctAnswers || []).includes(oIdx) ? 'checked' : '' } 
+                                    onchange="toggleMultiCorrect(${idx}, ${oIdx}, this.checked)"> № ${oIdx + 1}
+                                </label>
+                            `).join('')}
+                        </div>
+                    `;
+                } else if (q.type === 'TEXT') {
+                    answerInputHtml = `
+                        Верная фраза: 
+                        <input type="text" value="${q.correctText || ''}" placeholder="Введите правильный ответ" onchange="updateQ(${idx}, 'correctText', this.value)">
+                    `;
+                }
+
+                div.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3>Вопрос ${idx + 1}</h3>
+                        <select style="width:150px;" onchange="updateQ(${idx}, 'type', this.value); renderCreator();">
+                            <option value="SINGLE" ${q.type === 'SINGLE' || !q.type ? 'selected' : ''}>Один выбор</option>
+                            <option value="MULTI" ${q.type === 'MULTI' ? 'selected' : ''}>Несколько выборов</option>
+                            <option value="TEXT" ${q.type === 'TEXT' ? 'selected' : ''}>Ввод текста</option>
+                        </select>
+                    </div>
+                    
+                    <div style="display:flex; gap:10px; align-items:flex-start;">
+                        <div style="flex-grow:1;">
+                            <input type="text" placeholder="Текст вопроса (Ctrl+V для вставки картинки)" value="${q.text}" 
+                                onchange="updateQ(${idx}, 'text', this.value)" 
+                                onpaste="handlePaste(event, (path) => { creatorQuestions[${idx}].image = path; renderCreator(); })">
+                        </div>
+                        <button onclick="triggerUpload((path) => { creatorQuestions[${idx}].image = path; renderCreator(); })" style="width:auto; padding: 10px; background:var(--glass);">🖼️</button>
+                    </div>
+                    ${q.image ? `<div style="margin-bottom:10px; position:relative; width:fit-content;">
+                        <img src="${q.image}" style="max-height:100px; border-radius:8px; display:block;">
+                        <span class="kick-btn" style="position:absolute; top:-5px; right:-5px; padding:2px 6px;" onclick="delete creatorQuestions[${idx}].image; renderCreator();">✕</span>
+                    </div>` : ''}
+                    
+                    ${q.type !== 'TEXT' ? `
+                    <div class="creator-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        ${q.options.map((opt, oIdx) => `
+                            <div class="creator-option-block" style="background: rgba(255,255,255,0.03); border-radius:10px; padding:5px;">
+                                <div style="display:flex; gap:5px; align-items:center;">
+                                    <input type="text" placeholder="Вариант ${oIdx + 1}" value="${opt}" onchange="updateOpt(${idx}, ${oIdx}, this.value)" 
+                                        onpaste="handlePaste(event, (path) => { creatorQuestions[${idx}].optionImages = creatorQuestions[${idx}].optionImages || {}; creatorQuestions[${idx}].optionImages[${oIdx}] = path; renderCreator(); })"
+                                        style="margin: 0; flex-grow: 1;">
+                                    <button onclick="triggerUpload((path) => { creatorQuestions[${idx}].optionImages = creatorQuestions[${idx}].optionImages || {}; creatorQuestions[${idx}].optionImages[${oIdx}] = path; renderCreator(); })" style="width:auto; padding: 5px 8px; font-size:0.8rem; background:none; border:1px solid rgba(255,255,255,0.1);">🖼️</button>
+                                    <span class="kick-btn" style="font-size: 1rem; padding: 2px 8px;" onclick="removeOption(${idx}, ${oIdx})">✕</span>
+                                </div>
+                                ${q.optionImages && q.optionImages[oIdx] ? `
+                                    <div style="margin-top:5px; position:relative; width:fit-content;">
+                                        <img src="${q.optionImages[oIdx]}" style="max-height:40px; border-radius:4px; display:block;">
+                                        <span class="kick-btn" style="position:absolute; top:-3px; right:-3px; padding:1px 4px; font-size:0.6rem;" onclick="delete creatorQuestions[${idx}].optionImages[${oIdx}]; renderCreator();">✕</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="addOption(${idx})" style="width: auto; background: var(--glass); padding: 5px 15px; font-size: 0.8rem; margin-top: 10px;">+ Вариант</button>
+                    ` : ''}
+
+                    <div style="margin-top:15px;">
+                        ${answerInputHtml}
+                        <div style="margin-top:10px;">
+                            Время (сек): 
+                            <input type="number" value="${q.time}" style="width: 80px;" onchange="updateQ(${idx}, 'time', parseInt(this.value))">
+                        </div>
+                    </div>
+                    <button onclick="creatorQuestions.splice(${idx}, 1); renderCreator();" style="background: var(--error); width: auto; font-size: 0.8rem; margin-top:10px;">Удалить вопрос</button>
+                `;
+                area.appendChild(div);
+            });
+            renderQuizMath(area);
+        }
+
+        window.toggleMultiCorrect = (qIdx, oIdx, isChecked) => {
+            if (!creatorQuestions[qIdx].correctAnswers) creatorQuestions[qIdx].correctAnswers = [];
+            if (isChecked) {
+                if (!creatorQuestions[qIdx].correctAnswers.includes(oIdx)) creatorQuestions[qIdx].correctAnswers.push(oIdx);
+            } else {
+                creatorQuestions[qIdx].correctAnswers = creatorQuestions[qIdx].correctAnswers.filter(i => i !== oIdx);
+            }
+        };
+
+        window.updateQ = (idx, key, val) => creatorQuestions[idx][key] = val;
+        window.updateOpt = (qIdx, oIdx, val) => creatorQuestions[qIdx].options[oIdx] = val;
+
+        window.addOption = (qIdx) => {
+            creatorQuestions[qIdx].options.push('');
+            renderCreator();
+        };
+
+        window.removeOption = (qIdx, oIdx) => {
+            if (creatorQuestions[qIdx].options.length <= 2) return alert('Минимум 2 варианта!');
+            creatorQuestions[qIdx].options.splice(oIdx, 1);
+            // Fix correct indices
+            if (creatorQuestions[qIdx].correctAnswer === oIdx) creatorQuestions[qIdx].correctAnswer = 0;
+            if (creatorQuestions[qIdx].correctAnswers) {
+                creatorQuestions[qIdx].correctAnswers = creatorQuestions[qIdx].correctAnswers.filter(i => i !== oIdx).map(i => i > oIdx ? i - 1 : i);
+            }
+            renderCreator();
+        };
+
+        document.getElementById('btn-save-quiz').onclick = async () => {
+            const title = document.getElementById('creator-title').value || 'Без названия';
+            const res = await fetch('/api/save-quiz', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, questions: creatorQuestions, id: currentQuizId })
+            });
+            if (res.ok) {
+                alert('Квиз сохранен!');
+                showScreen('main-admin-menu');
+            }
+        };
+
+        // Quiz Selector
+        async function loadQuizzes() {
+            const res = await fetch('/api/quizzes');
+            const quizzes = await res.json();
+            const list = document.getElementById('quiz-list-container');
+            list.innerHTML = '';
+            quizzes.forEach(q => {
+                const div = document.createElement('div');
+                div.className = 'player-card'; // Reuse styled card
+                div.style.width = '100%';
+                div.style.justifyContent = 'space-between';
+                div.innerHTML = `
+                    <div style="text-align: left; flex-grow: 1; cursor:pointer;" onclick="selectQuizByClick('${q.id}')">
+                        <div style="font-weight: 600;">${q.title}</div>
+                        <div style="font-size: 0.8rem; opacity: 0.6;">${q.date}</div>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button onclick="editQuiz('${q.id}')" style="width: auto; padding: 5px 15px; background: var(--glass);">✏️</button>
+                        <button onclick="selectQuiz('${q.id}')" style="width: auto; padding: 5px 15px; background: var(--secondary);">▶</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+            showScreen('quiz-selector-screen');
+        }
+
+        window.selectQuizByClick = (id) => selectQuiz(id);
+
+        async function selectQuiz(quizId) {
+            const res = await fetch('/api/select-quiz', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: quizId })
+            });
+            if (res.ok) {
+                currentQuizId = quizId;
+                initLobby();
+            }
+        }
+
+        async function editQuiz(quizId) {
+            const res = await fetch(`/api/get-quiz/${quizId}`);
+            if (res.ok) {
+                const data = await res.json();
+                creatorQuestions = data.questions || [];
+                currentQuizId = quizId;
+                document.getElementById('creator-title').value = data.title || '';
+                renderCreator();
+                showScreen('creator-screen');
+            }
+        }
+
+        // Stats
+        async function loadStats() {
+            const res = await fetch('/api/stats');
+            const stats = await res.json();
+            const tbody = document.getElementById('stats-tbody');
+            tbody.innerHTML = '';
+            stats.reverse().forEach(s => {
+                const tr = document.createElement('tr');
+                tr.style.cursor = 'pointer';
+                tr.onclick = () => showDetail(s);
+                tr.innerHTML = `
+                    <td>${s.date}</td>
+                    <td>${s.title}</td>
+                    <td>${s.playersCount}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            showScreen('stats-screen');
+        }
+
+        function showDetail(session) {
+            const detail = document.getElementById('stats-detail');
+            const summary = document.getElementById('detail-summary');
+            const list = document.getElementById('detail-results-list');
+            detail.classList.remove('hidden');
+
+            summary.innerHTML = `
+                <p><strong>Квиз:</strong> ${session.title}</p>
+                <p><strong>Дата:</strong> ${session.date}</p>
+                <p><strong>Участников:</strong> ${session.playersCount}</p>
+                <p><strong>Победитель:</strong> ${session.winner}</p>
+            `;
+
+            list.innerHTML = '<h3>Результаты участников:</h3>';
+            
+            // Session data should have leaderboard or results
+            const players = session.leaderboard || [];
+            
+            players.forEach((p, idx) => {
+                const correctCount = Object.values(p.answers || {}).filter(a => a.correct).length;
+                const totalQ = session.questions ? session.questions.length : 1;
+                const percent = Math.round((correctCount / totalQ) * 100);
+                
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'creator-item';
+                playerDiv.style.marginBottom = '10px';
+                playerDiv.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <span><strong>${idx + 1}. ${p.emoji || '👤'} ${p.name}</strong></span>
+                        <span>Баллы: <strong>${p.score}</strong> | <span class="badge-percent">${percent}%</span> (<strong>${correctCount}/${totalQ}</strong>) ▾</span>
+                    </div>
+                    <div class="hidden" style="margin-top:10px; font-size: 0.9rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top:10px;">
+                        ${(session.questions || []).map((q, qIdx) => {
+                            const ans = (p.answers || {})[qIdx];
+                            const status = ans ? (ans.correct ? '✅' : '❌') : '➖';
+                            const points = ans ? ans.points : 0;
+                            // For multi or text, show what the user answered
+                            let userAnswerDisplay = '';
+                            if (ans && ans.type === 'TEXT') userAnswerDisplay = ` (Ответ: "${ans.answer}")`;
+                            else if (ans && ans.type === 'MULTI') userAnswerDisplay = ` (№ ${ans.answer.map(i=>i+1).join(',')})`;
+                            else if (ans) userAnswerDisplay = ` (№ ${ans.answer + 1})`;
+
+                            return `<p>${qIdx + 1}. ${status} ${q.text}${userAnswerDisplay} (<strong>+${points}</strong>)</p>`;
+                        }).join('')}
+                    </div>
+                `;
+                list.appendChild(playerDiv);
+            });
+            renderQuizMath(list);
+            renderQuizMath(summary);
+        }
+
+        async function initLobby() {
+            const res = await fetch('/api/server-info');
+            const data = await res.json();
+            document.getElementById('qr-image').src = data.qr;
+            document.getElementById('server-url').innerText = data.url;
+            document.getElementById('pin-display').innerText = data.pin;
+            showScreen('lobby-screen');
+        }
+
+        let livePlayers = [];
+        let answeredPlayers = new Set();
+
+        socket.on('player_list', (players) => {
+            livePlayers = players;
+            updateLiveLobby(players);
+            updateLiveQuizList();
+        });
+
+        function updateLiveLobby(players) {
+            document.getElementById('player-count').innerText = players.length;
+            const list = document.getElementById('player-list');
+            list.innerHTML = '';
+            players.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'player-card';
+                div.innerHTML = `<span>${p.emoji}</span> <span>${p.name}</span> <span class="kick-btn" onclick="kickPlayer('${p.id}')">✕</span>`;
+                list.appendChild(div);
+            });
+            if (players.length > 0) document.getElementById('btn-start').classList.remove('hidden');
+        }
+
+        function updateLiveQuizList() {
+            const list = document.getElementById('live-player-list');
+            if (!list) return;
+            list.innerHTML = '';
+            livePlayers.forEach(p => {
+                const isAnswered = answeredPlayers.has(p.id);
+                const div = document.createElement('div');
+                div.className = 'player-card';
+                div.style.opacity = isAnswered ? '1' : '0.5';
+                div.innerHTML = `<span>${p.emoji}</span> <span>${p.name} ${isAnswered ? '✅' : '...'}</span>`;
+                list.appendChild(div);
+            });
+            document.getElementById('answered-counter').innerText = `Ответило: ${answeredPlayers.size} из ${livePlayers.length}`;
+        }
+
+        socket.on('player_answered', (data) => {
+            answeredPlayers.add(data.playerId);
+            updateLiveQuizList();
+        });
+
+        window.kickPlayer = (id) => {
+            if (confirm('Выгнать этого игрока?')) {
+                socket.emit('kick_player', { playerId: id });
+            }
+        };
+
+        document.getElementById('btn-start').onclick = () => socket.emit('start_quiz');
+
+        socket.on('new_question', (data) => {
+            answeredPlayers.clear();
+            showScreen('admin-quiz-screen');
+            updateLiveQuizList();
+            document.getElementById('admin-q-progress').innerText = `Вопрос ${data.index + 1} из ${data.total}`;
+            const qEl = document.getElementById('admin-question');
+            qEl.innerHTML = (data.image ? `<img src="${data.image}" class="quiz-image preview-img" onclick="openPreview(this.src)">` : '') + data.question;
+            const opts = document.getElementById('admin-options');
+            opts.innerHTML = '';
+            
+            if (data.type === 'TEXT') {
+                opts.innerHTML = `<div style="padding: 20px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px dashed var(--secondary); text-align: center; color: var(--secondary);">[ Ученики вводят текст ]</div>`;
+            } else {
+                data.options.forEach((o, i) => {
+                    let optHtml = `<div class="option-item" style="padding: 15px; margin: 8px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); animation: slideIn 0.3s ease-out ${i * 0.1}s both; display:flex; align-items:center; gap:10px;">`;
+                    if (data.optionImages && data.optionImages[i]) {
+                        optHtml += `<img src="${data.optionImages[i]}" class="option-image preview-img" onclick="openPreview(this.src)"> `;
+                    }
+                    optHtml += `<span>${i + 1}. ${o}</span></div>`;
+                    opts.innerHTML += optHtml;
+                });
+            }
+            startAdminTimer(data.time);
+            renderQuizMath(document.getElementById('admin-quiz-screen'));
+        });
+
+        function startAdminTimer(seconds) {
+            const bar = document.getElementById('admin-timer');
+            bar.style.transition = 'none'; bar.style.width = '100%';
+            setTimeout(() => {
+                bar.style.transition = `width ${seconds}s linear`;
+                bar.style.width = '0%';
+            }, 50);
+        }
+
+        socket.on('question_finished', (data) => {
+            showScreen('admin-results-screen');
+            renderLeaderboard(data.leaderboard);
+        });
+
+        socket.on('leaderboard_update', (data) => {
+            renderLeaderboard(data.leaderboard);
+        });
+
+        function renderLeaderboard(leaderboard) {
+            const lb = document.getElementById('admin-leaderboard');
+            if (document.getElementById('admin-results-screen').classList.contains('hidden')) return;
+            lb.innerHTML = '<h3>Таблица лидеров:</h3>';
+            leaderboard.forEach((p, idx) => {
+                lb.innerHTML += `
+                    <div class="leaderboard-item ${idx < 3 ? 'top' : ''}">
+                        <span>${idx + 1}. ${p.emoji} ${p.name}</span>
+                        <div style="display:flex; align-items:center;">
+                            <span style="margin-right:15px;">${p.score}</span>
+                            <span class="kick-btn" onclick="kickPlayer('${p.id}')">✕</span>
+                        </div>
+                    </div>`;
+            });
+            renderQuizMath(lb);
+        }
+
+        document.getElementById('btn-next-q').onclick = () => socket.emit('next_question');
+
+        socket.on('final_results', (data) => {
+            showScreen('admin-final-screen');
+            const stats = document.getElementById('admin-final-stats');
+            stats.innerHTML = '<h3>Итоговый топ:</h3>';
+            data.leaderboard.forEach((p, idx) => {
+                if (idx === 0) document.getElementById('p1').innerHTML = `🥇<br><span style="font-size:3rem">${p.emoji}</span><br>${p.name}<br>${p.score}`;
+                if (idx === 1) document.getElementById('p2').innerHTML = `🥈<br><span style="font-size:2.5rem">${p.emoji}</span><br>${p.name}<br>${p.score}`;
+                if (idx === 2) document.getElementById('p3').innerHTML = `🥉<br><span style="font-size:2.5rem">${p.emoji}</span><br>${p.name}<br>${p.score}`;
+                stats.innerHTML += `
+                    <div class="leaderboard-item">
+                        <span>${idx + 1}. ${p.emoji} ${p.name}</span>
+                        <div style="display:flex; align-items:center;">
+                            <span style="margin-right:15px;">${p.score}</span>
+                            <span class="kick-btn" onclick="kickPlayer('${p.id}')">✕</span>
+                        </div>
+                    </div>`;
+            });
+            renderQuizMath(document.getElementById('admin-final-screen'));
+        });
+
+        function showScreen(id) {
+            const screens = ['admin-login', 'main-admin-menu', 'quiz-selector-screen', 'creator-screen', 'stats-screen', 'lobby-screen', 'admin-quiz-screen', 'admin-results-screen', 'admin-final-screen'];
+            screens.forEach(s => document.getElementById(s).classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        window.openPreview = (src) => {
+            const modal = document.getElementById('image-modal');
+            const modalImg = document.getElementById('modal-img');
+            modal.classList.remove('hidden');
+            modalImg.src = src;
+        };
+
+        window.closePreview = () => {
+            document.getElementById('image-modal').classList.add('hidden');
+        };
+    </script>
+    <style>
+        @keyframes slideIn { from { opacity:0; transform:translateX(-30px); } to { opacity:1; transform:translateX(0); } }
+    </style>
+</body>
+</html>
