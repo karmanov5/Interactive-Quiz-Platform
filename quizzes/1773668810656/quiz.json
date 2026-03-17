@@ -1,0 +1,42 @@
+{
+  "title": "Тестовый",
+  "questions": [
+    {
+      "text": "Кто ты?",
+      "options": [
+        "Человек",
+        "Никто",
+        "Животное"
+      ],
+      "correctAnswer": 0,
+      "time": 20,
+      "type": "MULTI",
+      "correctAnswers": [
+        0
+      ]
+    },
+    {
+      "text": "Сколько человек было в классе?",
+      "options": [
+        "1",
+        "2",
+        "3"
+      ],
+      "correctAnswer": 1,
+      "time": 20
+    },
+    {
+      "text": "Какой правильный ответ в предыдущем задании?",
+      "options": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "correctAnswer": 0,
+      "time": 20,
+      "type": "TEXT",
+      "correctText": "2"
+    }
+  ]
+}

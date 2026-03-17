@@ -1,0 +1,661 @@
+[
+  {
+    "title": "Просто",
+    "date": "16.03.2026, 15:00:41",
+    "playersCount": 1,
+    "winner": "Ововово",
+    "leaderboard": [
+      {
+        "name": "Ововово",
+        "emoji": "👨‍🎓",
+        "score": 0,
+        "answers": {
+          "0": {
+            "correct": false,
+            "points": 0,
+            "time": 2933
+          }
+        }
+      }
+    ]
+  },
+  {
+    "title": "Просто",
+    "date": "16.03.2026, 15:20:19",
+    "playersCount": 0,
+    "winner": "-",
+    "leaderboard": []
+  },
+  {
+    "title": "Просто",
+    "date": "16.03.2026, 16:17:00",
+    "playersCount": 1,
+    "winner": "Влад",
+    "leaderboard": [
+      {
+        "id": "-aGc-Mb1kRC-VcztAABT",
+        "name": "Влад",
+        "emoji": "🚀",
+        "score": 0,
+        "answers": {
+          "0": {
+            "correct": false,
+            "points": 0,
+            "time": 10003
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773668002390,
+    "title": "Просто",
+    "date": "16.03.2026, 16:33:22",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "Кто ты такой",
+        "options": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "correctAnswer": 1,
+        "time": 30
+      }
+    ],
+    "results": {
+      "yFrtY6-VnbZyL4sNAAAr": {
+        "id": "yFrtY6-VnbZyL4sNAAAr",
+        "name": "Влад",
+        "emoji": "🐶",
+        "score": 1828,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1828,
+            "time": 5156
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "yFrtY6-VnbZyL4sNAAAr",
+        "name": "Влад",
+        "emoji": "🐶",
+        "score": 1828,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1828,
+            "time": 5156
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773668875101,
+    "title": "Тестовый",
+    "date": "16.03.2026, 16:47:55",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "Кто ты?",
+        "options": [
+          "Человек",
+          "Никто",
+          "Животное"
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "type": "MULTI",
+        "correctAnswers": [
+          0
+        ]
+      },
+      {
+        "text": "Сколько человек было в классе?",
+        "options": [
+          "1",
+          "2",
+          "3"
+        ],
+        "correctAnswer": 1,
+        "time": 20
+      },
+      {
+        "text": "Какой правильный ответ в предыдущем задании?",
+        "options": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "type": "TEXT",
+        "correctText": "2"
+      }
+    ],
+    "results": {
+      "eSmsmjVBnkq0EPrmAAA7": {
+        "id": "eSmsmjVBnkq0EPrmAAA7",
+        "name": "Влад",
+        "emoji": "🐨",
+        "score": 0,
+        "answers": {
+          "0": {
+            "correct": false,
+            "points": 0,
+            "time": 6444,
+            "type": "MULTI"
+          },
+          "1": {
+            "correct": false,
+            "points": 0,
+            "time": 6704,
+            "type": "SINGLE",
+            "answer": 2
+          },
+          "2": {
+            "correct": false,
+            "points": 0,
+            "time": 7164,
+            "type": "TEXT"
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "eSmsmjVBnkq0EPrmAAA7",
+        "name": "Влад",
+        "emoji": "🐨",
+        "score": 0,
+        "answers": {
+          "0": {
+            "correct": false,
+            "points": 0,
+            "time": 6444,
+            "type": "MULTI"
+          },
+          "1": {
+            "correct": false,
+            "points": 0,
+            "time": 6704,
+            "type": "SINGLE",
+            "answer": 2
+          },
+          "2": {
+            "correct": false,
+            "points": 0,
+            "time": 7164,
+            "type": "TEXT"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773669063072,
+    "title": "Тестовый",
+    "date": "16.03.2026, 16:51:03",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "Кто ты?",
+        "options": [
+          "Человек",
+          "Никто",
+          "Животное"
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "type": "MULTI",
+        "correctAnswers": [
+          0
+        ]
+      },
+      {
+        "text": "Сколько человек было в классе?",
+        "options": [
+          "1",
+          "2",
+          "3"
+        ],
+        "correctAnswer": 1,
+        "time": 20
+      },
+      {
+        "text": "Какой правильный ответ в предыдущем задании?",
+        "options": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "type": "TEXT",
+        "correctText": "2"
+      }
+    ],
+    "results": {
+      "b_aL9fjBd1lnseN-AABf": {
+        "id": "b_aL9fjBd1lnseN-AABf",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 5023,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1578,
+            "time": 8440,
+            "type": "MULTI",
+            "answer": [
+              0
+            ]
+          },
+          "1": {
+            "correct": true,
+            "points": 1738,
+            "time": 5236,
+            "type": "SINGLE",
+            "answer": 1
+          },
+          "2": {
+            "correct": true,
+            "points": 1707,
+            "time": 5845,
+            "type": "TEXT",
+            "answer": "2"
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "b_aL9fjBd1lnseN-AABf",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 5023,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1578,
+            "time": 8440,
+            "type": "MULTI",
+            "answer": [
+              0
+            ]
+          },
+          "1": {
+            "correct": true,
+            "points": 1738,
+            "time": 5236,
+            "type": "SINGLE",
+            "answer": 1
+          },
+          "2": {
+            "correct": true,
+            "points": 1707,
+            "time": 5845,
+            "type": "TEXT",
+            "answer": "2"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773669907116,
+    "title": "Просто",
+    "date": "16.03.2026, 17:05:07",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "Вычислите значение выражения: $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$ при $a=1, b=-5, c=6$",
+        "options": [
+          "$x=2, x=3$",
+          "$x=1, x=6$",
+          "$x=5, x=1$",
+          "$x=0$"
+        ],
+        "correctAnswer": 0,
+        "time": 20
+      }
+    ],
+    "results": {
+      "nHwAnz5LSREzQ4nDAABx": {
+        "id": "nHwAnz5LSREzQ4nDAABx",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1494,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1494,
+            "time": 10102,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "nHwAnz5LSREzQ4nDAABx",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1494,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1494,
+            "time": 10102,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773670535754,
+    "title": "Тестовый",
+    "date": "16.03.2026, 17:15:35",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "кто изображен на картинке?",
+        "options": [
+          "1",
+          "3",
+          "2",
+          "4"
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "image": "/quizzes/1773670452664/1773670459083.png",
+        "optionImages": {
+          "0": "/quizzes/1773670452664/1773670486643.png"
+        }
+      }
+    ],
+    "results": {
+      "nV9q3vhC8LguEYmWAABK": {
+        "id": "nV9q3vhC8LguEYmWAABK",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1618,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1618,
+            "time": 7623,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "nV9q3vhC8LguEYmWAABK",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1618,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1618,
+            "time": 7623,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773670920889,
+    "title": "Тестовый",
+    "date": "16.03.2026, 17:22:00",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "кто изображен на картинке?",
+        "options": [
+          "1",
+          "3",
+          "2",
+          "4"
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "image": "/quizzes/1773670452664/1773670459083.png",
+        "optionImages": {
+          "0": "/quizzes/1773670452664/1773670486643.png"
+        }
+      }
+    ],
+    "results": {
+      "_0QEYaZx3vvTe6U_AAB3": {
+        "id": "_0QEYaZx3vvTe6U_AAB3",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1502,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1502,
+            "time": 9946,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "_0QEYaZx3vvTe6U_AAB3",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1502,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1502,
+            "time": 9946,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773670989417,
+    "title": "Тестовый",
+    "date": "16.03.2026, 17:23:09",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "кто изображен на картинке?",
+        "options": [
+          "1",
+          "3",
+          "2",
+          "4"
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "image": "/quizzes/1773670452664/1773670459083.png",
+        "optionImages": {
+          "0": "/quizzes/1773670452664/1773670486643.png"
+        }
+      }
+    ],
+    "results": {
+      "UD5g6IJyyfe0mhcpAACA": {
+        "id": "UD5g6IJyyfe0mhcpAACA",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1149,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1149,
+            "time": 17005,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "UD5g6IJyyfe0mhcpAACA",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1149,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1149,
+            "time": 17005,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773671224146,
+    "title": "Тестовый",
+    "date": "16.03.2026, 17:27:04",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "кто изображен на картинке?",
+        "options": [
+          "1",
+          "3",
+          "2",
+          "4"
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "image": "/quizzes/1773670452664/1773670459083.png",
+        "optionImages": {
+          "0": "/quizzes/1773670452664/1773670486643.png"
+        }
+      }
+    ],
+    "results": {
+      "uFySOm34ad1mh8vZAACn": {
+        "id": "uFySOm34ad1mh8vZAACn",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1288,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1288,
+            "time": 14238,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "uFySOm34ad1mh8vZAACn",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1288,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1288,
+            "time": 14238,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 1773671411341,
+    "title": "Тестовый",
+    "date": "16.03.2026, 17:30:11",
+    "playersCount": 1,
+    "winner": "Влад",
+    "questions": [
+      {
+        "text": "кто изображен на картинке?",
+        "options": [
+          "1",
+          "2",
+          "2",
+          "4"
+        ],
+        "correctAnswer": 0,
+        "time": 20,
+        "image": "/quizzes/1773670452664/1773670459083.png",
+        "optionImages": {
+          "0": "/quizzes/1773670452664/1773670486643.png",
+          "1": "/quizzes/1773670452664/1773671364739.png"
+        }
+      }
+    ],
+    "results": {
+      "hi0wXyk9t4XzVFXuAAC8": {
+        "id": "hi0wXyk9t4XzVFXuAAC8",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1198,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1198,
+            "time": 16024,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    },
+    "leaderboard": [
+      {
+        "id": "hi0wXyk9t4XzVFXuAAC8",
+        "name": "Влад",
+        "emoji": "👨‍🎓",
+        "score": 1198,
+        "answers": {
+          "0": {
+            "correct": true,
+            "points": 1198,
+            "time": 16024,
+            "type": "SINGLE",
+            "answer": 0
+          }
+        }
+      }
+    ]
+  }
+]

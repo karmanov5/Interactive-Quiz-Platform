@@ -6,7 +6,7 @@
     <title>Админ Панель - Учитель</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&family=Inter:wght@400;700&display=swap" rel="stylesheet">
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="socket.io/socket.io.js"></script>
     <!-- KaTeX for Math support -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -14,6 +14,17 @@
 </head>
 <body>
     <div class="bg-particles" id="bg-particles"></div>
+    <div class="player-floating-container" id="player-bubbles"></div>
+    
+    <!-- Persistent Join Info for Late Joiners -->
+    <div id="persistent-join-info" class="hidden" style="position: fixed; bottom: 20px; left: 20px; background: var(--glass); backdrop-filter: blur(15px); padding: 10px; border-radius: 15px; border: 1px solid var(--glass-border); z-index: 100; display: flex; align-items: center; gap: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.3);">
+        <img id="mini-qr" style="width: 80px; height: 80px; background: white; border-radius: 8px;">
+        <div style="text-align: left;">
+            <div style="font-size: 0.7rem; color: var(--secondary); font-weight: 600;">ВХОД ДЛЯ ОПОЗДАВШИХ:</div>
+            <div id="mini-pin" style="font-size: 1.5rem; font-weight: 800; letter-spacing: 2px;">000000</div>
+            <div style="font-size: 0.6rem; opacity: 0.7;">notvlesskarm.ru/quiz</div>
+        </div>
+    </div>
     <div class="container" id="admin-login">
         <h1>Вход для учителя</h1>
         <input type="password" id="admin-pass" placeholder="Пароль">
@@ -75,7 +86,8 @@
     </div>
 
     <div class="container hidden" id="lobby-screen">
-        <h1>Лобби квиза</h1>
+        <h1 id="lobby-quiz-title-display">Название квиза</h1>
+        <h3 class="lobby-quiz-title">Лобби квиза</h3>
         <div id="qr-container">
             <img id="qr-image" style="background: white; padding: 10px; border-radius: 10px;">
             <p id="server-url"></p>
@@ -101,6 +113,7 @@
 
     <div class="container hidden" id="admin-results-screen">
         <h1>Результаты вопроса</h1>
+        <div id="question-stats" style="margin-bottom: 20px; text-align: left; max-height: 400px; overflow-y: auto;"></div>
         <div class="leaderboard" id="admin-leaderboard"></div>
         <button id="btn-next-q">Следующий вопрос</button>
     </div>
@@ -123,16 +136,39 @@
     </div>
 
     <script>
-        const socket = io();
+        const socket = io({ path: '/quiz/socket.io', transports: ['websocket'] });
         let creatorQuestions = [];
         let currentQuizId = null;
+        let gameState_status = 'LOBBY';
+
+        function showScreen(id) {
+            const screens = ['admin-login', 'main-admin-menu', 'quiz-selector-screen', 'creator-screen', 'stats-screen', 'lobby-screen', 'admin-quiz-screen', 'admin-results-screen', 'admin-final-screen'];
+            screens.forEach(s => {
+                const el = document.getElementById(s);
+                if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(id);
+            if (target) target.classList.remove('hidden');
+
+            // Update internal state tracker
+            if (id === 'admin-quiz-screen') gameState_status = 'PLAYING';
+            else if (id === 'admin-results-screen') gameState_status = 'QUESTION_RESULTS';
+            else gameState_status = 'OTHER';
+
+            // Toggle persistent info visibility
+            const joinInfo = document.getElementById('persistent-join-info');
+            if (joinInfo) {
+                if (gameState_status === 'PLAYING' || gameState_status === 'QUESTION_RESULTS') joinInfo.classList.remove('hidden');
+                else joinInfo.classList.add('hidden');
+            }
+        }
 
         async function uploadImage(file, callback) {
             if (!currentQuizId) currentQuizId = Date.now().toString();
             const formData = new FormData();
             formData.append('image', file);
             
-            const res = await fetch(`/api/upload-image/${currentQuizId}`, {
+            const res = await fetch(`api/upload-image/${currentQuizId}`, {
                 method: 'POST',
                 body: formData
             });
@@ -142,7 +178,7 @@
 
         async function uploadBase64Image(base64, callback) {
             if (!currentQuizId) currentQuizId = Date.now().toString();
-            const res = await fetch(`/api/upload-image/${currentQuizId}`, {
+            const res = await fetch(`api/upload-image/${currentQuizId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image: base64 })
@@ -236,7 +272,7 @@
             reader.onload = async (event) => {
                 try {
                     const quizData = JSON.parse(event.target.result);
-                    const res = await fetch('/api/import-quiz', {
+                    const res = await fetch('api/import-quiz', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(quizData)
@@ -386,7 +422,7 @@
 
         document.getElementById('btn-save-quiz').onclick = async () => {
             const title = document.getElementById('creator-title').value || 'Без названия';
-            const res = await fetch('/api/save-quiz', {
+            const res = await fetch('api/save-quiz', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title, questions: creatorQuestions, id: currentQuizId })
@@ -399,7 +435,7 @@
 
         // Quiz Selector
         async function loadQuizzes() {
-            const res = await fetch('/api/quizzes');
+            const res = await fetch('api/quizzes');
             const quizzes = await res.json();
             const list = document.getElementById('quiz-list-container');
             list.innerHTML = '';
@@ -415,6 +451,7 @@
                     </div>
                     <div style="display:flex; gap:10px;">
                         <button onclick="editQuiz('${q.id}')" style="width: auto; padding: 5px 15px; background: var(--glass);">✏️</button>
+                        <button onclick="deleteQuiz('${q.id}')" style="width: auto; padding: 5px 15px; background: var(--error);">🗑️</button>
                         <button onclick="selectQuiz('${q.id}')" style="width: auto; padding: 5px 15px; background: var(--secondary);">▶</button>
                     </div>
                 `;
@@ -426,7 +463,7 @@
         window.selectQuizByClick = (id) => selectQuiz(id);
 
         async function selectQuiz(quizId) {
-            const res = await fetch('/api/select-quiz', {
+            const res = await fetch('api/select-quiz', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: quizId })
@@ -437,8 +474,17 @@
             }
         }
 
+        window.deleteQuiz = async (quizId) => {
+            if (confirm('Удалить этот квиз? При этом статистика по нему сохранится.')) {
+                const res = await fetch(`api/delete-quiz/${quizId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    loadQuizzes();
+                }
+            }
+        };
+
         async function editQuiz(quizId) {
-            const res = await fetch(`/api/get-quiz/${quizId}`);
+            const res = await fetch(`api/get-quiz/${quizId}`);
             if (res.ok) {
                 const data = await res.json();
                 creatorQuestions = data.questions || [];
@@ -451,7 +497,7 @@
 
         // Stats
         async function loadStats() {
-            const res = await fetch('/api/stats');
+            const res = await fetch('api/stats');
             const stats = await res.json();
             const tbody = document.getElementById('stats-tbody');
             tbody.innerHTML = '';
@@ -522,11 +568,14 @@
         }
 
         async function initLobby() {
-            const res = await fetch('/api/server-info');
+            const res = await fetch('api/server-info');
             const data = await res.json();
+            document.getElementById('lobby-quiz-title-display').innerText = data.title || 'Квиз';
             document.getElementById('qr-image').src = data.qr;
-            document.getElementById('server-url').innerText = data.url;
+            document.getElementById('mini-qr').src = data.qr;
+            document.getElementById('server-url').innerText = data.urlWithPin;
             document.getElementById('pin-display').innerText = data.pin;
+            document.getElementById('mini-pin').innerText = data.pin;
             showScreen('lobby-screen');
         }
 
@@ -537,16 +586,20 @@
             livePlayers = players;
             updateLiveLobby(players);
             updateLiveQuizList();
+            updatePlayerBubbles(players);
         });
 
         function updateLiveLobby(players) {
-            document.getElementById('player-count').innerText = players.length;
+            const connectedCount = players.filter(p => p.connected).length;
+            document.getElementById('player-count').innerText = connectedCount + (players.length > connectedCount ? ` (+${players.length - connectedCount} оффлайн)` : '');
+            
             const list = document.getElementById('player-list');
             list.innerHTML = '';
             players.forEach(p => {
                 const div = document.createElement('div');
                 div.className = 'player-card';
-                div.innerHTML = `<span>${p.emoji}</span> <span>${p.name}</span> <span class="kick-btn" onclick="kickPlayer('${p.id}')">✕</span>`;
+                if (!p.connected) div.style.opacity = '0.4';
+                div.innerHTML = `<span>${p.emoji}</span> <span>${p.name}${p.connected ? '' : ' (откл.)'}</span> <span class="kick-btn" onclick="kickPlayer('${p.id}')">✕</span>`;
                 list.appendChild(div);
             });
             if (players.length > 0) document.getElementById('btn-start').classList.remove('hidden');
@@ -556,21 +609,127 @@
             const list = document.getElementById('live-player-list');
             if (!list) return;
             list.innerHTML = '';
+            
+            const onlinePlayers = livePlayers.filter(p => p.connected);
             livePlayers.forEach(p => {
                 const isAnswered = answeredPlayers.has(p.id);
                 const div = document.createElement('div');
                 div.className = 'player-card';
-                div.style.opacity = isAnswered ? '1' : '0.5';
-                div.innerHTML = `<span>${p.emoji}</span> <span>${p.name} ${isAnswered ? '✅' : '...'}</span>`;
+                
+                if (!p.connected) {
+                    div.style.filter = 'grayscale(1) opacity(0.5)';
+                }
+                div.style.opacity = isAnswered ? '1' : (p.connected ? '0.5' : '0.3');
+                
+                div.innerHTML = `<span>${p.emoji}</span> <span style="font-size:0.85rem">${p.name} ${isAnswered ? '✅' : (p.connected ? '...' : '💤')}</span>`;
                 list.appendChild(div);
             });
-            document.getElementById('answered-counter').innerText = `Ответило: ${answeredPlayers.size} из ${livePlayers.length}`;
+            document.getElementById('answered-counter').innerText = `Ответило: ${answeredPlayers.size} из ${onlinePlayers.length}`;
         }
 
         socket.on('player_answered', (data) => {
             answeredPlayers.add(data.playerId);
             updateLiveQuizList();
         });
+
+        // --- Physics Engine for Bubbles ---
+        let activeBubbles = [];
+        const PHYSICS_SPEED = 0.8;
+        let physicsRunning = false;
+
+        function updatePlayerBubbles(players) {
+            const container = document.getElementById('player-bubbles');
+            if (!container) return;
+
+            // Only show bubbles during Lobby
+            if (gameState_status !== 'OTHER' && gameState_status !== 'LOBBY') {
+                activeBubbles.forEach(b => b.el.remove());
+                activeBubbles = [];
+                return;
+            }
+
+            const activePlayers = players.filter(p => p.connected).slice(0, 20);
+            
+            // Sync
+            activeBubbles = activeBubbles.filter(b => {
+                if (!activePlayers.find(p => p.id === b.id)) {
+                    b.el.remove();
+                    return false;
+                }
+                return true;
+            });
+
+            activePlayers.forEach(p => {
+                if (!activeBubbles.find(b => b.id === p.id)) {
+                    const outer = document.createElement('div');
+                    outer.className = 'player-bubble-container';
+                    
+                    const inner = document.createElement('div');
+                    inner.className = 'player-bubble';
+                    inner.innerHTML = `<span class="player-bubble-avatar">${p.emoji}</span> <span>${p.name}</span>`;
+                    
+                    outer.onclick = (e) => {
+                        e.stopPropagation();
+                        inner.classList.remove('react');
+                        void inner.offsetWidth;
+                        inner.classList.add('react');
+                    };
+                    
+                    outer.appendChild(inner);
+                    container.appendChild(outer);
+                    
+                    const rect = inner.getBoundingClientRect();
+                    activeBubbles.push({
+                        id: p.id,
+                        el: outer,
+                        inner: inner,
+                        x: Math.random() * (window.innerWidth - 150),
+                        y: Math.random() * (window.innerHeight - 100),
+                        vx: (Math.random() - 0.5) * PHYSICS_SPEED,
+                        vy: (Math.random() - 0.5) * PHYSICS_SPEED,
+                        w: rect.width || 120,
+                        h: rect.height || 40
+                    });
+                }
+            });
+
+            if (activeBubbles.length > 0) startPhysicsLoop();
+        }
+
+        function startPhysicsLoop() {
+            if (physicsRunning) return;
+            physicsRunning = true;
+            function animate() {
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                for (let i = 0; i < activeBubbles.length; i++) {
+                    const b = activeBubbles[i];
+                    b.x += b.vx; b.y += b.vy;
+                    if (b.x < 0) { b.x = 0; b.vx *= -1; }
+                    if (b.x + b.w > vw) { b.x = vw - b.w; b.vx *= -1; }
+                    if (b.y < 0) { b.y = 0; b.vy *= -1; }
+                    if (b.y + b.h > vh) { b.y = vh - b.h; b.vy *= -1; }
+                    for (let j = i + 1; j < activeBubbles.length; j++) {
+                        const other = activeBubbles[j];
+                        const dx = (b.x + b.w/2) - (other.x + other.w/2);
+                        const dy = (b.y + b.h/2) - (other.y + other.h/2);
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const minDistance = (b.w + other.w) / 2.5;
+                        if (distance < minDistance) {
+                            const angle = Math.atan2(dy, dx);
+                            b.vx = Math.cos(angle) * PHYSICS_SPEED;
+                            b.vy = Math.sin(angle) * PHYSICS_SPEED;
+                            other.vx = -Math.cos(angle) * PHYSICS_SPEED;
+                            other.vy = -Math.sin(angle) * PHYSICS_SPEED;
+                        }
+                    }
+                    b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
+                }
+                if (activeBubbles.length > 0) requestAnimationFrame(animate);
+                else physicsRunning = false;
+            }
+            requestAnimationFrame(animate);
+        }
 
         window.kickPlayer = (id) => {
             if (confirm('Выгнать этого игрока?')) {
@@ -617,28 +776,205 @@
 
         socket.on('question_finished', (data) => {
             showScreen('admin-results-screen');
-            renderLeaderboard(data.leaderboard);
+            renderQuestionStats(data);
+            renderLeaderboard(data.leaderboard, data.playerResults);
         });
+
+        function renderQuestionStats(data) {
+            const statsContainer = document.getElementById('question-stats');
+            statsContainer.innerHTML = '<h3>Статистика ответов:</h3>';
+            
+            if (!data.playerResults || Object.keys(data.playerResults).length === 0) {
+                statsContainer.innerHTML += '<p>Нет ответов.</p>';
+                return;
+            }
+
+            if (data.type === 'TEXT') {
+                let html = '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
+                html += Object.keys(data.playerResults).map(pid => {
+                    const ans = data.playerResults[pid];
+                    const pInfo = livePlayers.find(p => p.id === pid) || {name: 'Неизвестный', emoji: '👤'};
+                    if (!ans) return '';
+                    const color = ans.correct ? 'var(--success)' : 'var(--error)';
+                    return `<div style="padding: 10px; background: rgba(255,255,255,0.05); border: 2px solid ${color}; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.5rem;">${pInfo.emoji}</span>
+                        <div>
+                            <div style="font-size: 0.8rem; opacity: 0.7;">${pInfo.name}</div>
+                            <div style="font-size: 1.1rem; font-weight: bold; color: ${color};">${ans.answer || '-'}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+                html += '</div>';
+                
+                if (data.correctText) {
+                    html += `<div style="margin-top: 15px; padding: 10px; border-radius: 8px; background: rgba(0,255,100,0.1); color: var(--success);">
+                        <strong>Правильный ответ:</strong> ${data.correctText}
+                    </div>`;
+                }
+
+                statsContainer.innerHTML += html;
+            } else if (data.type === 'SINGLE' || !data.type) {
+                const counts = {};
+                (data.options || []).forEach((_, i) => counts[i] = 0);
+                Object.values(data.playerResults).forEach(ans => {
+                    if (ans && ans.answer !== undefined && counts[ans.answer] !== undefined) {
+                        counts[ans.answer]++;
+                    }
+                });
+                
+                const totalPlayers = Object.keys(data.playerResults).length;
+                const maxCount = Math.max(...Object.values(counts), 1);
+                
+                let barsHtml = '';
+                (data.options || []).forEach((opt, i) => {
+                    const isCorrect = (i == data.correctAnswer);
+                    const color = isCorrect ? 'var(--success)' : 'var(--error)';
+                    const count = counts[i] || 0;
+                    const percent = Math.round((count / totalPlayers) * 100) || 0;
+                    const widthPixels = Math.max((count / maxCount) * 100, 2);
+                    
+                    barsHtml += `
+                    <div style="margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 2px;">
+                            <span>${i + 1}. ${opt}</span>
+                            <span style="font-weight: bold;">${count} чел. (${percent}%)</span>
+                        </div>
+                        <div style="width: 100%; background: rgba(255,255,255,0.1); height: 20px; border-radius: 10px; overflow: hidden;">
+                            <div style="height: 100%; width: ${count === 0 ? 0 : widthPixels}%; background: ${color}; transition: width 0.5s ease; border-radius: 10px;"></div>
+                        </div>
+                    </div>`;
+                });
+                statsContainer.innerHTML += barsHtml;
+
+            } else if (data.type === 'MULTI') {
+                const counts = {};
+                (data.options || []).forEach((_, i) => counts[i] = 0);
+                Object.values(data.playerResults).forEach(ans => {
+                    if (ans && ans.answer) {
+                        (ans.answer || []).forEach(val => {
+                            if (counts[val] !== undefined) counts[val]++;
+                        });
+                    }
+                });
+                
+                const totalPlayers = Object.keys(data.playerResults).length;
+                const maxCount = Math.max(...Object.values(counts), 1);
+                const correctArr = data.correctAnswers || [];
+                
+                let barsHtml = '';
+                (data.options || []).forEach((opt, i) => {
+                    const isCorrect = correctArr.includes(i);
+                    const color = isCorrect ? 'var(--success)' : 'var(--error)';
+                    const count = counts[i] || 0;
+                    const percent = Math.round((count / totalPlayers) * 100) || 0;
+                    const widthPixels = Math.max((count / maxCount) * 100, 2);
+                    
+                    barsHtml += `
+                    <div style="margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 2px;">
+                            <span>${i + 1}. ${opt}</span>
+                            <span style="font-weight: bold;">${count} чел. (${percent}%)</span>
+                        </div>
+                        <div style="width: 100%; background: rgba(255,255,255,0.1); height: 20px; border-radius: 10px; overflow: hidden;">
+                            <div style="height: 100%; width: ${count === 0 ? 0 : widthPixels}%; background: ${color}; transition: width 0.5s ease; border-radius: 10px;"></div>
+                        </div>
+                    </div>`;
+                });
+                statsContainer.innerHTML += barsHtml;
+            }
+            renderQuizMath(statsContainer);
+        }
 
         socket.on('leaderboard_update', (data) => {
             renderLeaderboard(data.leaderboard);
         });
 
-        function renderLeaderboard(leaderboard) {
+        function renderLeaderboard(leaderboard, playerResults = null) {
             const lb = document.getElementById('admin-leaderboard');
             if (document.getElementById('admin-results-screen').classList.contains('hidden')) return;
-            lb.innerHTML = '<h3>Таблица лидеров:</h3>';
+            
+            let lbContainer = document.getElementById('lb-anim-container');
+            if (!lbContainer) {
+                lb.innerHTML = '<h3 style="margin-bottom: 20px;">Таблица лидеров:</h3><div id="lb-anim-container" style="position: relative; width: 100%; transition: height 0.5s ease;"></div>';
+                lbContainer = document.getElementById('lb-anim-container');
+            }
+
+            const ITEM_HEIGHT = 65;
+            lbContainer.style.height = `${leaderboard.length * ITEM_HEIGHT}px`;
+
             leaderboard.forEach((p, idx) => {
-                lb.innerHTML += `
-                    <div class="leaderboard-item ${idx < 3 ? 'top' : ''}">
-                        <span>${idx + 1}. ${p.emoji} ${p.name}</span>
-                        <div style="display:flex; align-items:center;">
-                            <span style="margin-right:15px;">${p.score}</span>
-                            <span class="kick-btn" onclick="kickPlayer('${p.id}')">✕</span>
-                        </div>
-                    </div>`;
+                let el = document.getElementById(`lb-card-${p.id}`);
+                
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = `lb-card-${p.id}`;
+                    el.className = 'leaderboard-item';
+                    // We remove padding/border from class and handle it inline for consistency with animation
+                    el.style.position = 'absolute';
+                    el.style.left = '0';
+                    el.style.right = '0';
+                    el.style.height = '55px';
+                    el.style.borderRadius = '12px';
+                    el.style.transition = 'all 2s cubic-bezier(0.34, 1.56, 0.64, 1)'; // Bouncy smooth transition
+                    el.style.display = 'flex';
+                    el.style.justifyContent = 'space-between';
+                    el.style.alignItems = 'center';
+                    el.style.padding = '0 15px';
+                    
+                    // Start from previous position or from current if new
+                    el.style.top = `${idx * ITEM_HEIGHT}px`;
+                    el.style.opacity = '0';
+                    lbContainer.appendChild(el);
+                    
+                    // Trigger reflow for fade in
+                    void el.offsetWidth;
+                    el.style.opacity = '1';
+                }
+
+                // Calculate Color and Glow
+                let bgColor = 'rgba(255, 255, 255, 0.05)';
+                let borderColor = 'rgba(255, 255, 255, 0.1)';
+                let boxShadow = 'none';
+
+                if (playerResults && playerResults[p.id]) {
+                    if (playerResults[p.id].correct) {
+                        bgColor = 'rgba(0, 242, 173, 0.15)'; 
+                        borderColor = 'var(--success)';
+                        boxShadow = '0 0 15px rgba(0, 242, 173, 0.3)';
+                    } else {
+                        bgColor = 'rgba(255, 77, 77, 0.15)'; 
+                        borderColor = 'var(--error)';
+                        boxShadow = '0 0 15px rgba(255, 77, 77, 0.3)';
+                    }
+                }
+
+                // Apply updates
+                el.style.top = `${idx * ITEM_HEIGHT}px`;
+                el.style.background = bgColor;
+                el.style.border = `1px solid ${borderColor}`;
+                el.style.boxShadow = boxShadow;
+                el.style.zIndex = (leaderboard.length - idx).toString();
+                
+                // Set inner content
+                el.innerHTML = `
+                    <span style="${idx < 3 ? 'font-weight: bold; color: #ffd700;' : ''}">${idx + 1}. ${p.emoji} ${p.name}</span>
+                    <div style="display:flex; align-items:center;">
+                        <span style="font-weight:bold; margin-right:15px; background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 8px;">${p.score}</span>
+                        <span class="kick-btn" onclick="kickPlayer('${p.id}')">✕</span>
+                    </div>
+                `;
             });
-            renderQuizMath(lb);
+
+            // Cleanup kicked players
+            const currentIds = leaderboard.map(p => `lb-card-${p.id}`);
+            Array.from(lbContainer.children).forEach(child => {
+                if (!currentIds.includes(child.id)) {
+                    child.style.opacity = '0';
+                    setTimeout(() => child.remove(), 800);
+                }
+            });
+
+            renderQuizMath(lbContainer);
         }
 
         document.getElementById('btn-next-q').onclick = () => socket.emit('next_question');
@@ -663,11 +999,7 @@
             renderQuizMath(document.getElementById('admin-final-screen'));
         });
 
-        function showScreen(id) {
-            const screens = ['admin-login', 'main-admin-menu', 'quiz-selector-screen', 'creator-screen', 'stats-screen', 'lobby-screen', 'admin-quiz-screen', 'admin-results-screen', 'admin-final-screen'];
-            screens.forEach(s => document.getElementById(s).classList.add('hidden'));
-            document.getElementById(id).classList.remove('hidden');
-        }
+
 
         window.openPreview = (src) => {
             const modal = document.getElementById('image-modal');

@@ -6,7 +6,7 @@
     <title>Ученик - Квиз</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&family=Inter:wght@400;700&display=swap" rel="stylesheet">
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="socket.io/socket.io.js"></script>
     <!-- KaTeX for Math support -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -14,10 +14,11 @@
 </head>
 <body>
     <div class="bg-particles" id="bg-particles"></div>
-
+    <div class="player-floating-container" id="player-bubbles"></div>
+    <div id="player-counter" class="player-counter-badge hidden">Подключено: 0</div>
     <div class="container" id="pin-screen">
         <h1>Введи PIN-код</h1>
-        <input type="number" id="room-pin" placeholder="000000" maxlength="6" style="font-size: 2.5rem; text-align: center; letter-spacing: 5px;">
+        <input type="number" id="room-pin" pattern="[0-9]*" inputmode="numeric" placeholder="000000" maxlength="6" style="font-size: 2.5rem; text-align: center; letter-spacing: 5px;">
         <button id="btn-validate-pin">Продолжить</button>
         <p id="pin-error" style="color: var(--error); margin-top: 10px;"></p>
     </div>
@@ -82,7 +83,7 @@
     </div>
 
     <script>
-        const socket = io();
+        const socket = io({ path: '/quiz/socket.io', transports: ['websocket'] });
         let selectedEmoji = "👨‍🎓";
         
         function initParticles() {
@@ -158,16 +159,166 @@
         };
 
         let myName = '';
+        let myPlayerId = localStorage.getItem('quiz_playerId') || Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('quiz_playerId', myPlayerId);
+
+        // Auto-fill and recover
+        const storedName = localStorage.getItem('quiz_name');
+        const storedEmoji = localStorage.getItem('quiz_emoji');
+        if (storedName) {
+            document.getElementById('nickname').value = storedName;
+            myName = storedName;
+        }
+        if (storedEmoji) {
+            selectedEmoji = storedEmoji;
+            document.getElementById('selected-emoji-display').innerText = storedEmoji;
+        }
 
         document.getElementById('btn-join').onclick = () => {
             const name = document.getElementById('nickname').value;
             if (!name) return alert('Введи ник!');
             myName = name;
-            socket.emit('join', { name, emoji: selectedEmoji });
+            selectedEmoji = selectedEmoji || "👨‍🎓";
+            
+            localStorage.setItem('quiz_name', myName);
+            localStorage.setItem('quiz_emoji', selectedEmoji);
+            
+            socket.emit('join', { playerId: myPlayerId, name, emoji: selectedEmoji });
         };
 
-        socket.on('joined', () => {
-            showScreen('waiting-screen');
+        socket.on('pin_valid', (data) => {
+            showScreen('join-screen');
+        });
+
+        socket.on('joined', (data) => {
+            document.getElementById('player-counter').classList.remove('hidden');
+            if (data.status === 'LOBBY') showScreen('waiting-screen');
+            else if (data.status === 'PLAYING') showScreen('quiz-screen');
+            else if (data.status === 'QUESTION_RESULTS') showScreen('feedback-screen');
+            else if (data.status === 'RESULTS') showScreen('final-results');
+            
+            if (data.score !== undefined) {
+                document.getElementById('total-score').innerText = data.score;
+            }
+        });
+
+        let activeBubbles = []; // [{ id, el, x, y, vx, vy, w, h }]
+        const PHYSICS_SPEED = 1.0;
+
+        function updatePlayerBubbles(players) {
+            const container = document.getElementById('player-bubbles');
+            if (activeBubbles.length === 0 && players.length > 0) {
+                // Initial fill or container was empty
+            }
+
+            const others = players.filter(p => p.id !== myPlayerId && p.connected).slice(0, 15);
+            
+            // Sync activeBubbles vs others
+            // 1. Remove bubbles that are gone
+            activeBubbles = activeBubbles.filter(b => {
+                if (!others.find(p => p.id === b.id)) {
+                    b.el.remove();
+                    return false;
+                }
+                return true;
+            });
+
+            // 2. Add new bubbles
+            others.forEach(p => {
+                if (!activeBubbles.find(b => b.id === p.id)) {
+                    const outer = document.createElement('div');
+                    outer.className = 'player-bubble-container';
+                    
+                    const inner = document.createElement('div');
+                    inner.className = 'player-bubble';
+                    inner.innerHTML = `<span class="player-bubble-avatar">${p.emoji}</span> <span>${p.name}</span>`;
+                    
+                    outer.onclick = (e) => {
+                        e.stopPropagation();
+                        inner.classList.remove('react');
+                        void inner.offsetWidth; // trigger reflow
+                        inner.classList.add('react');
+                    };
+                    
+                    outer.appendChild(inner);
+                    container.appendChild(outer);
+                    
+                    const rect = inner.getBoundingClientRect();
+                    activeBubbles.push({
+                        id: p.id,
+                        el: outer,
+                        inner: inner,
+                        x: Math.random() * (window.innerWidth - 150),
+                        y: Math.random() * (window.innerHeight - 100),
+                        vx: (Math.random() - 0.5) * PHYSICS_SPEED,
+                        vy: (Math.random() - 0.5) * PHYSICS_SPEED,
+                        w: rect.width || 120,
+                        h: rect.height || 40
+                    });
+                }
+            });
+
+            if (activeBubbles.length > 0) startPhysicsLoop();
+        }
+
+        let physicsRunning = false;
+        function startPhysicsLoop() {
+            if (physicsRunning) return;
+            physicsRunning = true;
+            
+            function animate() {
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+
+                for (let i = 0; i < activeBubbles.length; i++) {
+                    const b = activeBubbles[i];
+                    
+                    // Update pos
+                    b.x += b.vx;
+                    b.y += b.vy;
+
+                    // Wall bounce
+                    if (b.x < 0) { b.x = 0; b.vx *= -1; }
+                    if (b.x + b.w > vw) { b.x = vw - b.w; b.vx *= -1; }
+                    if (b.y < 0) { b.y = 0; b.vy *= -1; }
+                    if (b.y + b.h > vh) { b.y = vh - b.h; b.vy *= -1; }
+
+                    // Bubble collisions
+                    for (let j = i + 1; j < activeBubbles.length; j++) {
+                        const other = activeBubbles[j];
+                        const dx = (b.x + b.w/2) - (other.x + other.w/2);
+                        const dy = (b.y + b.h/2) - (other.y + other.h/2);
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const minDistance = (b.w + other.w) / 2.5; // Approximation
+
+                        if (distance < minDistance) {
+                            // Simple bounce
+                            const angle = Math.atan2(dy, dx);
+                            b.vx = Math.cos(angle) * PHYSICS_SPEED;
+                            b.vy = Math.sin(angle) * PHYSICS_SPEED;
+                            other.vx = -Math.cos(angle) * PHYSICS_SPEED;
+                            other.vy = -Math.sin(angle) * PHYSICS_SPEED;
+                        }
+                    }
+
+                    // Apply pos
+                    b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
+                }
+
+                if (activeBubbles.length > 0) {
+                    requestAnimationFrame(animate);
+                } else {
+                    physicsRunning = false;
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        socket.on('player_list', (players) => {
+            const counterText = `Подключено: ${players.length}`;
+            const counter = document.getElementById('player-counter');
+            if (counter) counter.innerText = counterText;
+            updatePlayerBubbles(players);
         });
 
         socket.on('new_question', (data) => {
@@ -266,7 +417,8 @@
         });
 
         socket.on('question_finished', (data) => {
-            const myResult = data.playerResults[socket.id];
+            const myResult = data.playerResults[myPlayerId]; // FIXED: Use myPlayerId instead of socket.id
+            const me = data.leaderboard.find(p => p.id === myPlayerId);
             showScreen('result-screen');
             const resText = document.getElementById('result-text');
             if (myResult && myResult.correct) {
@@ -276,22 +428,25 @@
             } else {
                 resText.innerText = 'Неверно 😢';
                 resText.style.color = '#d63031';
-                document.getElementById('points-gained').innerText = '+0';
+                document.getElementById('points-gained').innerText = (myResult ? '+0' : 'Пропущено');
             }
-            // Score will be updated in final_results or custom event
+            
+            if (me) {
+                document.getElementById('total-score').innerText = me.score;
+            }
         });
 
         socket.on('final_results', (data) => {
             showScreen('final-results');
             const stats = document.getElementById('final-stats');
-            const me = data.leaderboard.find(p => p.id === socket.id);
+            const me = data.leaderboard.find(p => p.id === myPlayerId);
             
             let html = `<h3>Твой итоговый счет: ${me ? me.score : '?'}</h3>`;
             html += `<div class="leaderboard" style="margin-top:20px; text-align: left;">`;
             data.leaderboard.forEach((p, idx) => {
                 html += `
                     <div class="leaderboard-item" style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                        <span>${idx + 1}. ${p.emoji} ${p.name} ${p.id === socket.id ? '(Ты)' : ''}</span>
+                        <span>${idx + 1}. ${p.emoji} ${p.name} ${p.id === myPlayerId ? '(Ты)' : ''}</span>
                         <span>${p.score}</span>
                     </div>
                 `;
@@ -328,6 +483,14 @@
                 bar.style.transition = `width ${seconds}s linear`;
                 bar.style.width = '0%';
             }, 50);
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const pinFromUrl = urlParams.get('pin');
+        if (pinFromUrl && pinFromUrl.length === 6) {
+            document.getElementById('room-pin').value = pinFromUrl;
+            socket.emit('validate_pin', { pin: pinFromUrl });
+            window.history.replaceState({}, document.title, window.location.pathname);
         }
     </script>
     <style>

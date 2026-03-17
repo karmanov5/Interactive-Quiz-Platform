@@ -39,6 +39,7 @@ body {
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5),
                 inset 0 0 0 1px var(--glass-border);
     text-align: center;
+    z-index: 10;
     position: relative;
     max-height: 90vh;
     overflow-y: auto;
@@ -54,13 +55,43 @@ h1 { font-weight: 800; margin-bottom: 20px; font-size: 2.5rem; }
 
     @media (max-width: 600px) {
     .container {
-        padding: 20px;
+        padding: 15px;
         width: 95%;
-        max-height: 95vh;
+        max-height: 98vh;
+        overflow-x: hidden;
     }
-    h1 { font-size: 1.8rem; }
-    .options-grid { grid-template-columns: 1fr; }
+    h1 { font-size: clamp(1.4rem, 6vw, 1.8rem); }
+    h2 { font-size: clamp(1.1rem, 5vw, 1.5rem) !important; }
+    
+    .option-btn { 
+        font-size: clamp(0.9rem, 4vw, 1.1rem) !important; 
+        padding: 12px 10px !important;
+        min-height: 50px !important;
+        line-height: 1.2;
+    }
+    
+    .multi-option { 
+        font-size: clamp(0.85rem, 3.5vw, 1rem); 
+        padding: 10px;
+    }
+    
+    .options-grid { grid-template-columns: 1fr; gap: 8px; }
     .creator-grid { grid-template-columns: 1fr !important; }
+    
+    /* Ensure PIN input doesn't overflow */
+    #room-pin {
+        font-size: clamp(1.5rem, 8vw, 2rem) !important;
+        letter-spacing: 2px !important;
+        padding: 10px !important;
+    }
+}
+
+/* Global overflow prevention and adaptive text */
+h1, h2, h3, p, span, div, .option-btn, .multi-option {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: normal; /* Normal for better wrapping in most cases */
+    max-width: 100%;
 }
 
 input, select, button {
@@ -385,5 +416,98 @@ input[type="checkbox"] {
     }
     .option-image {
         max-height: 80px;
+    }
+}
+/* Player Clouds / Bubbles at the BOTTOM */
+.player-floating-container {
+    position: fixed;
+    bottom: 0; left: 0; width: 100%; height: 35vh;
+    pointer-events: none;
+    z-index: -1;
+    overflow: hidden;
+}
+
+.player-bubble-container {
+    position: absolute;
+    will-change: transform;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    z-index: 5;
+}
+
+.player-bubble {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50px;
+    padding: 8px 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    font-size: 0.85rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    opacity: 0.8;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.3s;
+}
+
+.player-bubble-container:hover .player-bubble {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+}
+
+.player-bubble.react {
+    animation: bubbleReact 0.6s ease-out;
+}
+
+@keyframes bubbleReact {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.4) rotate(15deg); }
+    60% { transform: scale(0.9) rotate(-10deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+
+/* Base styles for the container */
+.player-floating-container {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 1; /* Above background particles, below UI containers */
+    overflow: hidden;
+}
+
+.lobby-quiz-title {
+    font-size: 1.5rem;
+    color: var(--secondary);
+    margin-bottom: 30px;
+    font-weight: 600;
+}
+
+.player-bubble-avatar {
+    font-size: 1.2rem;
+}
+
+.player-counter-badge {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--secondary);
+    backdrop-filter: blur(10px);
+    z-index: 100;
+}
+
+@media (max-width: 600px) {
+    .player-counter-badge {
+        top: 10px;
+        left: 10px;
+        font-size: 0.75rem;
+        padding: 5px 10px;
     }
 }

@@ -10,10 +10,25 @@ const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, { 
+    path: '/socket.io',
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    },
+    transports: ['websocket', 'polling']
+});
+
+io.engine.on("connection_error", (err) => {
+  console.log("Connection Error:", err.req ? err.req.url : 'no req');
+  console.log("Error Code:", err.code);
+  console.log("Error Message:", err.message);
+  console.log("Error Context:", err.context);
+});
+
 const upload = multer({ dest: 'uploads/' });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Directories
 const QUIZZES_DIR = path.join(__dirname, 'quizzes');
@@ -42,13 +57,17 @@ let gameState = {
     status: 'LOBBY', 
     questions: [],
     currentQuestionIndex: -1,
-    players: {}, 
+    players: {}, // Now indexed by permanent playerId
+    socketToPlayer: {}, // Map socket.id to playerId
     answersReceived: 0,
     startTime: null,
     quizTitle: 'Квиз',
     pin: null
 };
 
+app.use(require('cors')({
+    origin: "https://notvlesskarm.ru"
+}));
 app.use(express.static('public'));
 app.use('/quizzes', express.static('quizzes'));
 app.use(express.json({ limit: '50mb' }));
@@ -67,8 +86,7 @@ function getLocalIp() {
     return 'localhost';
 }
 
-const localIp = getLocalIp();
-const serverUrl = `http://${localIp}:${PORT}`;
+const serverUrl = 'https://notvlesskarm.ru/quiz';
 
 // API Routes
 app.get('/admin', (req, res) => {
@@ -76,8 +94,9 @@ app.get('/admin', (req, res) => {
 });
 
 app.get('/api/server-info', (req, res) => {
-    QRCode.toDataURL(serverUrl, (err, url) => {
-        res.json({ url: serverUrl, qr: url, pin: gameState.pin });
+    const urlWithPin = `${serverUrl}/?pin=${gameState.pin}`;
+    QRCode.toDataURL(urlWithPin, (err, url) => {
+        res.json({ url: serverUrl, urlWithPin: urlWithPin, qr: url, pin: gameState.pin, title: gameState.quizTitle });
     });
 });
 
@@ -144,6 +163,17 @@ app.post('/api/select-quiz', (req, res) => {
     }
 });
 
+app.delete('/api/delete-quiz/:id', (req, res) => {
+    const quizId = req.params.id;
+    const folderPath = path.join(QUIZZES_DIR, quizId);
+    if (fs.existsSync(folderPath)) {
+        fs.rmSync(folderPath, { recursive: true, force: true });
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Quiz not found' });
+    }
+});
+
 // Image Upload API (supports file upload and base64)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -160,7 +190,7 @@ const uploadImg = multer({ storage });
 
 app.post('/api/upload-image/:quizId', uploadImg.single('image'), (req, res) => {
     if (req.file) {
-        return res.json({ path: `quizzes/${req.params.quizId}/${req.file.filename}` });
+        return res.json({ path: `/quiz/quizzes/${req.params.quizId}/${req.file.filename}` });
     }
     
     // Support base64 (clipboard)
@@ -175,7 +205,7 @@ app.post('/api/upload-image/:quizId', uploadImg.single('image'), (req, res) => {
         const filePath = path.join(dir, filename);
         
         fs.writeFileSync(filePath, base64Data, 'base64');
-        return res.json({ path: `quizzes/${quizId}/${filename}` });
+        return res.json({ path: `/quiz/quizzes/${quizId}/${filename}` });
     }
     
     res.status(400).json({ error: 'No image provided' });
@@ -220,25 +250,88 @@ function saveSessionStats(leaderboard) {
 
 // Socket.io logic
 io.on('connection', (socket) => {
+    console.log(`User connected: ${socket.id} (Transport: ${socket.conn.transport.name})`);
+
     socket.on('validate_pin', (data) => {
-        if (gameState.pin && data.pin === gameState.pin && gameState.status === 'LOBBY') {
-            socket.emit('pin_valid');
+        console.log(`PIN attempt from ${socket.id}: ${data.pin} (Target: ${gameState.pin}, Status: ${gameState.status})`);
+        // Allow PIN validation even if game started (for late join)
+        if (gameState.pin && data.pin === gameState.pin) {
+            console.log('PIN valid');
+            socket.emit('pin_valid', { status: gameState.status });
         } else {
+            console.log('PIN invalid');
             socket.emit('pin_invalid', { message: !gameState.pin ? 'Квиз еще не запущен' : 'Неверный PIN' });
         }
     });
 
     socket.on('join', (data) => {
-        if (gameState.status !== 'LOBBY') return socket.emit('error', 'Game started');
-        gameState.players[socket.id] = {
-            id: socket.id,
-            name: data.name,
-            emoji: data.emoji,
-            score: 0,
-            answers: {}
-        };
+        const { playerId, name, emoji } = data;
+        if (!playerId) return;
+
+        console.log(`Join attempt: ${name} (${playerId})`);
+        
+        // Handle reconnection
+        if (gameState.players[playerId]) {
+            const player = gameState.players[playerId];
+            player.socketId = socket.id;
+            player.connected = true;
+            gameState.socketToPlayer[socket.id] = playerId;
+            
+            console.log(`Player reconnected: ${name}`);
+            socket.emit('joined', { status: gameState.status, score: player.score });
+            
+            // Sync current state
+            if (gameState.status === 'PLAYING') {
+                const currentQ = gameState.questions[gameState.currentQuestionIndex];
+                socket.emit('new_question', {
+                    index: gameState.currentQuestionIndex,
+                    total: gameState.questions.length,
+                    question: currentQ.text,
+                    image: currentQ.image,
+                    options: currentQ.options,
+                    optionImages: currentQ.optionImages,
+                    time: Math.max(0, Math.floor((currentQ.time * 1000 - (Date.now() - gameState.startTime)) / 1000)),
+                    type: currentQ.type || 'SINGLE',
+                    rejoin: true
+                });
+            } else if (gameState.status === 'QUESTION_RESULTS') {
+                sendResultsToSocket(socket);
+            } else if (gameState.status === 'RESULTS') {
+                socket.emit('final_results', { leaderboard: getLeaderboard() });
+            }
+        } else {
+            // New player or Late join
+            gameState.players[playerId] = {
+                id: playerId,
+                socketId: socket.id,
+                name: name,
+                emoji: emoji,
+                score: 0,
+                connected: true,
+                answers: {}
+            };
+            gameState.socketToPlayer[socket.id] = playerId;
+            
+            console.log(`New player joined: ${name}`);
+            socket.emit('joined', { status: gameState.status });
+
+            // If late join during question
+            if (gameState.status === 'PLAYING') {
+                const currentQ = gameState.questions[gameState.currentQuestionIndex];
+                socket.emit('new_question', {
+                    index: gameState.currentQuestionIndex,
+                    total: gameState.questions.length,
+                    question: currentQ.text,
+                    image: currentQ.image,
+                    options: currentQ.options,
+                    optionImages: currentQ.optionImages,
+                    time: Math.max(0, Math.floor((currentQ.time * 1000 - (Date.now() - gameState.startTime)) / 1000)),
+                    type: currentQ.type || 'SINGLE'
+                });
+            }
+        }
+        
         io.emit('player_list', Object.values(gameState.players));
-        socket.emit('joined', { status: gameState.status });
     });
 
     socket.on('start_quiz', () => {
@@ -247,22 +340,23 @@ io.on('connection', (socket) => {
     });
 
     socket.on('submit_answer', (data) => {
-        const player = gameState.players[socket.id];
+        const playerId = gameState.socketToPlayer[socket.id];
+        const player = gameState.players[playerId];
         if (!player || gameState.status !== 'PLAYING') return;
 
         const currentQ = gameState.questions[gameState.currentQuestionIndex];
         let isCorrect = false;
 
         if (currentQ.type === 'SINGLE' || !currentQ.type) {
-            isCorrect = data.answerIndex === currentQ.correctAnswer;
+            isCorrect = (data.answerIndex == currentQ.correctAnswer);
         } else if (currentQ.type === 'MULTI') {
-            const studentAnswers = (data.answerIndices || []).sort().join(',');
-            const correctAnswers = (currentQ.correctAnswers || []).sort().join(',');
+            const studentAnswers = (data.answerIndices || []).map(i => i.toString()).sort().join(',');
+            const correctAnswers = (currentQ.correctAnswers || []).map(i => i.toString()).sort().join(',');
             isCorrect = studentAnswers === correctAnswers && studentAnswers !== '';
         } else if (currentQ.type === 'TEXT') {
             const studentText = (data.answerText || '').trim().toLowerCase();
             const correctText = (currentQ.correctText || '').trim().toLowerCase();
-            isCorrect = studentText === correctText;
+            isCorrect = studentText === correctText && correctText !== '';
         }
 
         const timeTaken = Date.now() - gameState.startTime;
@@ -283,9 +377,10 @@ io.on('connection', (socket) => {
         };
         gameState.answersReceived++;
         socket.emit('answer_received');
-        io.emit('player_answered', { playerId: socket.id, count: gameState.answersReceived });
+        io.emit('player_answered', { playerId: playerId, count: gameState.answersReceived });
 
-        if (gameState.answersReceived >= Object.keys(gameState.players).length) {
+        const connectedPlayers = Object.values(gameState.players).filter(p => p.connected).length;
+        if (gameState.answersReceived >= connectedPlayers) {
             finishQuestion();
         }
     });
@@ -308,8 +403,11 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        if (gameState.players[socket.id]) {
-            delete gameState.players[socket.id];
+        const playerId = gameState.socketToPlayer[socket.id];
+        if (playerId && gameState.players[playerId]) {
+            gameState.players[playerId].connected = false;
+            delete gameState.socketToPlayer[socket.id];
+            console.log(`Player disconnected: ${gameState.players[playerId].name}`);
             io.emit('player_list', Object.values(gameState.players));
         }
     });
@@ -345,17 +443,40 @@ function nextQuestion() {
     }, 1000);
 }
 
+function getLeaderboard() {
+    return Object.values(gameState.players).sort((a, b) => b.score - a.score);
+}
+
+function sendResultsToSocket(targetSocket) {
+    const currentQ = gameState.questions[gameState.currentQuestionIndex];
+    targetSocket.emit('question_finished', {
+        correctAnswer: currentQ.correctAnswer,
+        correctAnswers: currentQ.correctAnswers,
+        correctText: currentQ.correctText,
+        type: currentQ.type || 'SINGLE',
+        options: currentQ.options,
+        leaderboard: getLeaderboard(),
+        playerResults: Object.keys(gameState.players).reduce((acc, id) => {
+            acc[id] = gameState.players[id].answers[gameState.currentQuestionIndex];
+            return acc;
+        }, {})
+    });
+}
+
 function finishQuestion() {
     clearInterval(timerInterval);
     if (gameState.status !== 'PLAYING') return;
 
     gameState.status = 'QUESTION_RESULTS';
     const currentQ = gameState.questions[gameState.currentQuestionIndex];
-    const leaderboard = Object.values(gameState.players).sort((a, b) => b.score - a.score);
-
+    
     io.emit('question_finished', {
         correctAnswer: currentQ.correctAnswer,
-        leaderboard,
+        correctAnswers: currentQ.correctAnswers,
+        correctText: currentQ.correctText,
+        type: currentQ.type || 'SINGLE',
+        options: currentQ.options,
+        leaderboard: getLeaderboard(),
         playerResults: Object.keys(gameState.players).reduce((acc, id) => {
             acc[id] = gameState.players[id].answers[gameState.currentQuestionIndex];
             return acc;
@@ -365,9 +486,9 @@ function finishQuestion() {
 
 function showFinalResults() {
     gameState.status = 'RESULTS';
-    const leaderboard = Object.values(gameState.players).sort((a, b) => b.score - a.score);
+    const leaderboard = getLeaderboard();
     saveSessionStats(leaderboard);
     io.emit('final_results', { leaderboard });
 }
 
-server.listen(PORT, () => console.log(`Server at ${serverUrl}`));
+server.listen(PORT, '127.0.0.1', () => console.log(`Server at ${serverUrl}`));
